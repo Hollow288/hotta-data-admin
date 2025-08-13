@@ -1,0 +1,41 @@
+spring:
+  datasource:
+    username:
+    password:
+    url:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maxLifetime: 600000
+      idleTimeout: 600000
+      ConnectionTestQuery: SELECT 1
+  application:
+    name: hotta-data-admin
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+  cache:
+    type: redis
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+logging:
+  config: classpath:Log4j2-spring.xml
+  level:
+    org.mybatis: DEBUG
+    org.apache.ibatis: DEBUG
+    com.hollow.build.mapper: DEBUG
+
+
+
+
+com:
+  hollow:
+    token:
+      secret-key: 4QqX8LfW9nH1GqN5XHcBdQZsAxh0Ww47C+BZ2IltZWc=
+      validity-access-token: 60
+      validity-refresh-token: 480
