@@ -37,5 +37,8 @@ com:
   hollow:
     token:
       secret-key: 4QqX8LfW9nH1GqN5XHcBdQZsAxh0Ww47C+BZ2IltZWc=
-      validity-access-token: 60
-      validity-refresh-token: 480
+      validity-access-token: 60 # 皆为分钟
+      validity-refresh-token: 480 # 皆为分钟
+      username-max-attempt: 5
+      ip-max-attempt: 5
+      ttl-seconds: 15 # 皆为分钟
