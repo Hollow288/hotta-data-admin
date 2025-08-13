@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Operation;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,8 +30,8 @@ public class AuthenticationController {
 	@PublicEndpoint
 	@PostMapping(value = "/auth/login")
 	@Operation(summary = "Validates user login credentials", description = "Validates user login credentials and returns access-token on successful authentication")
-	public ApiResponse<TokenSuccessResponseDto> login(@RequestBody final UserLoginRequestDto userLoginRequest) {
-		return userService.login(userLoginRequest);
+	public ApiResponse<TokenSuccessResponseDto> login(@RequestBody final UserLoginRequestDto userLoginRequest, HttpServletRequest request) {
+		return userService.login(userLoginRequest,request);
 	}
 
 }
