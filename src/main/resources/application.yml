@@ -42,3 +42,8 @@ com:
       username-max-attempt: 5
       ip-max-attempt: 5
       ttl-seconds: 15 # 皆为分钟
+    open-api:
+      enabled: true
+      api-version: 0.0.1
+      title: hotta-data-admin
+      description: 试试限流

@@ -31,4 +31,9 @@ public class Role implements Serializable {
     */
     @Schema(description = "角色权限字符串")
     private String roleKey;
+    /**
+     * 每小时可请求次数
+     */
+    @Schema(description = "每小时可请求次数")
+    private Integer limitPerHour;
 }

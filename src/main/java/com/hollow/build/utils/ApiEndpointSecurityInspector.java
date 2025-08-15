@@ -1,5 +1,6 @@
 package com.hollow.build.utils;
 
+import com.hollow.build.config.OpenApiConfigurationProperties;
 import com.hollow.build.config.PublicEndpoint;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
 import jakarta.annotation.PostConstruct;
@@ -25,6 +26,7 @@ import static org.springframework.http.HttpMethod.POST;
 public class ApiEndpointSecurityInspector {
 
 	private final RequestMappingHandlerMapping requestHandlerMapping;
+	private final OpenApiConfigurationProperties openApiConfigurationProperties;
 	private static final List<String> SWAGGER_V3_PATHS = List.of("/swagger-ui**/**", "/v3/api-docs**/**");
 	
 	@Getter
@@ -49,9 +51,12 @@ public class ApiEndpointSecurityInspector {
 				
 			}
 		});
-		
 
-		publicGetEndpoints.addAll(SWAGGER_V3_PATHS);
+
+		final var openApiEnabled = openApiConfigurationProperties.getOpenApi().isEnabled();
+		if (openApiEnabled) {
+			publicGetEndpoints.addAll(SWAGGER_V3_PATHS);
+		}
 
 	}
 

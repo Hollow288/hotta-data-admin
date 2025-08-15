@@ -1,11 +1,16 @@
 package com.hollow.build.config;
 
 import com.hollow.build.utils.FastJsonRedisSerializer;
+import org.redisson.config.Config;
+import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
+
+import org.redisson.Redisson;
+import org.redisson.api.RedissonClient;
 
 @Configuration
 public class RedisConfig {
@@ -31,4 +36,17 @@ public class RedisConfig {
 
         return template;
     }
+
+
+    @Bean(destroyMethod = "shutdown")
+    public RedissonClient redissonClient(final RedisProperties redisProperties) {
+        String redisAddress = String.format("redis://%s:%d", redisProperties.getHost(), redisProperties.getPort());
+        final var configuration = new Config();
+        configuration.useSingleServer().setPassword(redisProperties.getPassword()).setAddress(redisAddress);
+        return Redisson.create(configuration);
+    }
+
+
+
+
 }

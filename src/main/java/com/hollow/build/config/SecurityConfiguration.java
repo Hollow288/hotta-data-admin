@@ -2,10 +2,10 @@ package com.hollow.build.config;
 
 
 import com.hollow.build.filter.JwtAuthenticationFilter;
+import com.hollow.build.filter.RateLimitFilter;
 import com.hollow.build.utils.ApiEndpointSecurityInspector;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
-import org.apache.catalina.filters.RateLimitFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -29,7 +29,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfiguration {
 
-//	private final RateLimitFilter rateLimitFilter;
+	private final RateLimitFilter rateLimitFilter;
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final ApiEndpointSecurityInspector apiEndpointSecurityInspector;
 	
@@ -46,8 +46,8 @@ public class SecurityConfiguration {
 						.requestMatchers(HttpMethod.POST, apiEndpointSecurityInspector.getPublicPostEndpoints().toArray(String[]::new)).permitAll()
 					.anyRequest().authenticated();
 				})
-			.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
-//			.addFilterAfter(rateLimitFilter, JwtAuthenticationFilter.class);
+			.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+			.addFilterAfter(rateLimitFilter, JwtAuthenticationFilter.class);
 
 		return http.build();
 	}

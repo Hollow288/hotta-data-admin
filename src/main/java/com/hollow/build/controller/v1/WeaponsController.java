@@ -1,12 +1,11 @@
 package com.hollow.build.controller.v1;
 
 import com.hollow.build.common.ApiResponse;
-import com.hollow.build.config.PublicEndpoint;
+import com.hollow.build.config.BypassRateLimit;
 import com.hollow.build.dto.WeaponsResponseDto;
 import com.hollow.build.service.WeaponsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,8 +31,9 @@ public class WeaponsController {
 
 
     @GetMapping("/{item_key}")
+    @BypassRateLimit
     @Operation(summary = "根据名称查询武器", description = "根据武器名称获取武器的详细信息")
-    public ApiResponse<WeaponsResponseDto> getWeaponByKey(@RequestParam(value = "item_key") String itemKey) {
+    public ApiResponse<WeaponsResponseDto> getWeaponByKey(@PathVariable(value = "item_key") String itemKey) {
         WeaponsResponseDto dto = weaponsService.getWeaponByKey(itemKey);
         return ApiResponse.success(dto);
     }

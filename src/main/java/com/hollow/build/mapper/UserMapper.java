@@ -16,4 +16,7 @@ public interface UserMapper {
 
     @Select("select role_key from role where role_id in (select role_id from user_role where user_id = #{userId})")
     List<String> selectRolesByUserId(Long userId);
+
+    @Select("select limit_per_hour from role where role_id in (select role_id from user_role where user_id = #{userId}) order by limit_per_hour desc limit 1")
+    Integer getLimitPerHourByUserId(Long userId);
 }
