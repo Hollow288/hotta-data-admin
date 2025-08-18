@@ -32,7 +32,7 @@ public class WeaponsController {
 
     @GetMapping("/{item_key}")
     @BypassRateLimit
-    @Operation(summary = "根据名称查询武器", description = "根据武器名称获取武器的详细信息")
+    @Operation(summary = "根据key查询武器", description = "根据key获取武器的详细信息")
     public ApiResponse<WeaponsResponseDto> getWeaponByKey(@PathVariable(value = "item_key") String itemKey) {
         WeaponsResponseDto dto = weaponsService.getWeaponByKey(itemKey);
         return ApiResponse.success(dto);
