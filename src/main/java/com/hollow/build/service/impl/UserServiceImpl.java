@@ -61,11 +61,18 @@ public class UserServiceImpl implements UserService {
 
 		String userid = loginUser.getUser().getUserId().toString();
 		String accessToken = jwtUtil.createJWT(userid, jwtUtil.getAccessTokenTTL());
+		String refreshToken = jwtUtil.createJWT(userid, jwtUtil.getRefreshTokenTTL());
 
 		redisUtil.set(
 				"access_token:" + userid,
 				JSONObject.toJSONString(loginUser.getPermissions()),
 				jwtUtil.getAccessTokenTTL() / 1000
+		);
+
+		redisUtil.set(
+				"refresh_token:" + userid,
+				JSONObject.toJSONString(loginUser.getPermissions()),
+				jwtUtil.getRefreshTokenTTL() / 1000
 		);
 
 		// 登录成功
@@ -74,6 +81,7 @@ public class UserServiceImpl implements UserService {
 		return ApiResponse.success(
 				TokenSuccessResponseDto.builder()
 						.accessToken(accessToken)
+						.refreshToken(refreshToken)
 						.build()
 		);
 	}

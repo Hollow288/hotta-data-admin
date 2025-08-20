@@ -24,6 +24,7 @@ public class WeaponsController {
     @GetMapping
 //    @PreAuthorize("hasRole('ADMIN')")
 //    @PublicEndpoint
+    @BypassRateLimit
     @Operation(summary = "查询所有武器", description = "获取所有武器的基本信息")
     public ApiResponse<List<WeaponsResponseDto>> getAllWeapons() {
         return ApiResponse.success(weaponsService.getAllWeapons());

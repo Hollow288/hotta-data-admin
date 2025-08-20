@@ -8,17 +8,13 @@ import org.springframework.stereotype.Component;
 @Getter
 @Setter
 @Component
-@ConfigurationProperties(prefix = "com.hollow.open-api")
-public class OpenApiConfigurationProperties {
+@ConfigurationProperties(prefix = "com.hollow.minio")
+public class MinioConfigurationProperties {
 
-	private boolean enabled;
+	private String endpoint;
 
-	private String title;
+	private String accessKey;
 
-	private String apiVersion;
-
-	private String description;
-
-
+	private String secretKey;
 
 }

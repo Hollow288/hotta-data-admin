@@ -53,7 +53,7 @@ public class ApiEndpointSecurityInspector {
 		});
 
 
-		final var openApiEnabled = openApiConfigurationProperties.getOpenApi().isEnabled();
+		final var openApiEnabled = openApiConfigurationProperties.isEnabled();
 		if (openApiEnabled) {
 			publicGetEndpoints.addAll(SWAGGER_V3_PATHS);
 		}

@@ -3,6 +3,7 @@ package com.hollow.build.service.impl;
 
 import com.hollow.build.dto.CustomUserDetails;
 import com.hollow.build.mapper.UserMapper;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -16,10 +17,11 @@ import java.util.Objects;
 
 @Service
 @Transactional
+@RequiredArgsConstructor
 public class UserDetailsServiceImpl implements UserDetailsService {
 
-    @Autowired
-    private UserMapper userMapper;
+
+    private final UserMapper userMapper;
 
 
     //实现UserDetailsService接口，重写UserDetails方法，自定义用户的信息从数据中查询

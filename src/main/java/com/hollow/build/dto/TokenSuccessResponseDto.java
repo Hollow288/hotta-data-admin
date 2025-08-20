@@ -18,4 +18,6 @@ public class TokenSuccessResponseDto implements Serializable {
 
 	private String accessToken;
 
+	private String refreshToken;
+
 }
