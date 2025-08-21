@@ -109,7 +109,7 @@
             <AppenderRef ref="Console" />
         </Logger>
 
-        <root level="info">
+        <root level="debug">
 <!--        <root level="trace">-->
             <appender-ref ref="Console" />
             <appender-ref ref="Filelog" />
