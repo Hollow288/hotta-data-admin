@@ -71,6 +71,7 @@ public class EventNewsServiceImpl implements EventNewsService {
     }
 
     @Override
+    @CacheEvict(value = {"eventNewsPage", "eventNewsById"}, allEntries = true)
     public void deleteEventNews(Map<String, Object> eventEventNews) {
         List<String> eventNewsList = (List<String>)eventEventNews.get("eventNewsIds");
         if (eventNewsList != null && !eventNewsList.isEmpty()) {
