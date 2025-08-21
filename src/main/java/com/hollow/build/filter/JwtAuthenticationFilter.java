@@ -8,6 +8,7 @@ import com.hollow.build.utils.ApiEndpointSecurityInspector;
 import com.hollow.build.utils.JwtUtil;
 import com.hollow.build.utils.RedisUtil;
 import io.jsonwebtoken.Claims;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -29,7 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -42,10 +43,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
 
+
     @Override
     @SneakyThrows
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) {
         final var unsecuredApiBeingInvoked = apiEndpointSecurityInspector.isUnsecureRequest(request);
+
+        log.info("=== 请求进入过滤器 ===");
+        log.info("Request URI: {}", request.getRequestURI());
+        log.info("Request URL: {}", request.getRequestURL());
+        log.info("Request Method: {}", request.getMethod());
+        log.info("Query String: {}", request.getQueryString());
+        log.info("Context Path: {}", request.getContextPath());
+        log.info("Servlet Path: {}", request.getServletPath());
+        log.info("Path Info: {}", request.getPathInfo());
+        log.info("Authorization Header: {}", request.getHeader(AUTHORIZATION_HEADER));
+        log.info("Content-Type: {}", request.getContentType());
+        log.info("=== 结束请求信息 ===");
+
+
 
         if (!unsecuredApiBeingInvoked) {
             final var authorizationHeader = request.getHeader(AUTHORIZATION_HEADER);
