@@ -6,6 +6,7 @@ import com.hollow.build.dto.WeaponsResponseDto;
 import com.hollow.build.service.WeaponsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,9 +23,9 @@ public class WeaponsController {
     }
 
     @GetMapping
-//    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
 //    @PublicEndpoint
-    @BypassRateLimit
+//    @BypassRateLimit
     @Operation(summary = "查询所有武器", description = "获取所有武器的基本信息")
     public ApiResponse<List<WeaponsResponseDto>> getAllWeapons() {
         return ApiResponse.success(weaponsService.getAllWeapons());
@@ -32,7 +33,8 @@ public class WeaponsController {
 
 
     @GetMapping("/{item_key}")
-    @BypassRateLimit
+    @PreAuthorize("hasRole('ADMIN')")
+//    @BypassRateLimit
     @Operation(summary = "根据key查询武器", description = "根据key获取武器的详细信息")
     public ApiResponse<WeaponsResponseDto> getWeaponByKey(@PathVariable(value = "item_key") String itemKey) {
         WeaponsResponseDto dto = weaponsService.getWeaponByKey(itemKey);

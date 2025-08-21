@@ -1,8 +1,8 @@
 spring:
   datasource:
-    username:
-    password:
-    url:
+    username: ${MYSQL_USERNAME:}
+    password: ${MYSQL_PASSWORD:}
+    url: ${MYSQL_URL:}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maxLifetime: 600000
@@ -12,10 +12,17 @@ spring:
     name: hotta-data-admin
   data:
     redis:
-      host: 127.0.0.1
-      port: 6379
+      database: 5
+      host: ${REDIS_HOST:}
+      port: ${REDIS_PORT:}
+      password: ${REDIS_PASSWORD:}
   cache:
     type: redis
+
+server:
+  port: 5777
+  tomcat:
+    max-swallow-size: -1
 
 mybatis:
   mapper-locations: classpath:mapper/*.xml
@@ -30,20 +37,21 @@ logging:
     org.apache.ibatis: DEBUG
     com.hollow.build.mapper: DEBUG
 
-
-
-
 com:
   hollow:
     token:
-      secret-key: 4QqX8LfW9nH1GqN5XHcBdQZsAxh0Ww47C+BZ2IltZWc=
+      secret-key: ${TOKEN_KEY:}
       validity-access-token: 60 # 皆为分钟
       validity-refresh-token: 480 # 皆为分钟
-      username-max-attempt: 5
+      username-max-attempt: 10
       ip-max-attempt: 5
       ttl-seconds: 15 # 皆为分钟
     open-api:
-      enabled: true
+      enabled: false
       api-version: 0.0.1
       title: hotta-data-admin
       description: 试试限流
+    minio:
+      endpoint: ${MINIO_ENDPOINT:}
+      access-key: ${MINIO_ACCESSKEY:}
+      secret-key: ${MINIO_SECRETKEY:}

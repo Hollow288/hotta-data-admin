@@ -25,8 +25,8 @@ public class EventNewsController {
     private final EventNewsService eventNewsService;
 
     @GetMapping()
-    @PublicEndpoint
-//    @PreAuthorize("hasRole('ADMIN')")
+//    @PublicEndpoint
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
             summary = "分页查询活动列表",
             description = "根据页码、每页数量以及搜索名称分页查询活动"
@@ -44,8 +44,8 @@ public class EventNewsController {
     }
 
     @GetMapping("/{news_id}")
-    @PublicEndpoint
-//    @PreAuthorize("hasRole('ADMIN')")
+//    @PublicEndpoint
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
             summary = "ID查询活动",
             description = "根据ID查询活动"
@@ -55,7 +55,7 @@ public class EventNewsController {
     }
 
     @PostMapping()
-    @PublicEndpoint
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
             summary = "添加活动",
             description = "添加活动"
@@ -66,7 +66,7 @@ public class EventNewsController {
     }
 
     @PutMapping("/{news_id}")
-    @PublicEndpoint
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
             summary = "修改活动",
             description = "修改活动"
