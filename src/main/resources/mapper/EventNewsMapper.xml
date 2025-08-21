@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+
+<mapper namespace="com.hollow.build.mapper.EventNewsMapper">
+
+    <!-- 分页查询 -->
+    <select id="selectByPage" resultType="com.hollow.build.entity.EventNews">
+        SELECT
+        news_id, news_title, news_describe, news_img_url,
+        news_start, news_end, del_flag
+        FROM event_news
+        WHERE del_flag = '0'
+        <if test="searchName != null and searchName != ''">
+            AND news_title LIKE CONCAT('%', #{searchName}, '%')
+        </if>
+        ORDER BY news_id DESC
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <!-- 统计总数 -->
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        FROM event_news
+        WHERE del_flag = '0'
+        <if test="searchName != null and searchName != ''">
+            AND news_title LIKE CONCAT('%', #{searchName}, '%')
+        </if>
+    </select>
+
+
+    <insert id="addEventNews" parameterType="com.hollow.build.dto.EventNewsDto" useGeneratedKeys="true" keyProperty="newsId">
+        INSERT INTO event_news
+        (news_title, news_describe, news_img_url, news_start, news_end, del_flag)
+        VALUES
+            (#{newsTitle}, #{newsDescribe}, #{newsImgUrl}, #{newsStart}, #{newsEnd}, '0')
+    </insert>
+
+
+    <update id="updateEventNews">
+        UPDATE event_news
+        SET
+            news_title = #{event.newsTitle},
+            news_describe = #{event.newsDescribe},
+            news_img_url = #{event.newsImgUrl},
+            news_start = #{event.newsStart},
+            news_end = #{event.newsEnd}
+        WHERE news_id = #{newsId}
+    </update>
+
+    <update id="deleteEventNews">
+        UPDATE event_news
+        SET del_flag = '1'
+        WHERE news_id IN
+        <foreach item="id" collection="eventNewsList" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+
+</mapper>

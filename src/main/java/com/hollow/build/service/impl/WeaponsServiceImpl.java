@@ -11,6 +11,8 @@ import com.hollow.build.entity.Weapons;
 import com.hollow.build.mapper.WeaponsMapper;
 import com.hollow.build.service.WeaponsService;
 import com.hollow.build.utils.DtoMapperUtil;
+import com.hollow.build.utils.MinioUtil;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -21,13 +23,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class WeaponsServiceImpl implements WeaponsService {
 
     private final WeaponsMapper weaponsMapper;
 
-    public WeaponsServiceImpl(WeaponsMapper weaponsMapper) {
-        this.weaponsMapper = weaponsMapper;
-    }
+    private final MinioUtil minioUtil;
+
+
 
     @Override
     @Cacheable(value = "weapons_all")
@@ -41,6 +44,7 @@ public class WeaponsServiceImpl implements WeaponsService {
         List<WeaponUpgradeStarPack> stars = weaponsMapper.findWeaponUpgradeStarsByWeaponsId(ids);
 
         Map<Integer, WeaponsResponseDto> dtoMap = weaponsList.stream()
+                .peek(w -> w.setItemIcon(minioUtil.fileUrlEncoderChance(w.getItemIcon())))
                 .collect(Collectors.toMap(Weapons::getWeaponsId, w -> DtoMapperUtil.map(w, WeaponsResponseDto.class)));
 
         skills.forEach(skill -> {
@@ -81,7 +85,11 @@ public class WeaponsServiceImpl implements WeaponsService {
     @Override
     @Cacheable(value = "weapons", key = "#itemKey")
     public WeaponsResponseDto getWeaponByKey(String itemKey) {
-        return weaponsMapper.selectWeaponWithDetailsByKey(itemKey);
+        WeaponsResponseDto weaponsResponseDto = weaponsMapper.selectWeaponWithDetailsByKey(itemKey);
+        if (weaponsResponseDto != null) {
+            weaponsResponseDto.setItemIcon(minioUtil.fileUrlEncoderChance(weaponsResponseDto.getItemIcon()));
+        }
+        return weaponsResponseDto;
     }
 
 }

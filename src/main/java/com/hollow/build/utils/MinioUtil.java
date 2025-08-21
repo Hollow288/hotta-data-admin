@@ -1,5 +1,6 @@
 package com.hollow.build.utils;
 
+import com.hollow.build.config.MinioConfigurationProperties;
 import io.minio.*;
 import io.minio.http.Method;
 import io.minio.messages.Bucket;
@@ -10,13 +11,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.apache.commons.compress.utils.IOUtils;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +33,8 @@ import java.util.stream.Collectors;
 public class MinioUtil {
 
     private final MinioClient minioClient;
+
+    private final MinioConfigurationProperties minioConfigurationProperties;
 
     /**
      * description: 判断bucket是否存在，不存在则创建
@@ -315,6 +318,27 @@ public class MinioUtil {
         InputStream is = minioClient.getObject(GetObjectArgs.builder().bucket(bucketName).object(fileName).build());
         IOUtils.copy(is, response.getOutputStream());
         is.close();
+    }
+
+
+    public String fileUrlEncoderChance(String originalPath) {
+
+            if (originalPath == null || originalPath.isBlank()) {
+                return "";
+            }
+
+            String fileName = originalPath.substring(originalPath.lastIndexOf('/') + 1);
+
+            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                    .replaceAll("\\+", "%20")
+                    .replaceAll("%21", "!")
+                    .replaceAll("%27", "'")
+                    .replaceAll("%28", "(")
+                    .replaceAll("%29", ")")
+                    .replaceAll("%7E", "~");
+            String baseUrl = originalPath.substring(0, originalPath.lastIndexOf('/') + 1);
+
+            return minioConfigurationProperties.getEndpoint() + '/' + baseUrl + encodedFileName;
     }
 }
  
