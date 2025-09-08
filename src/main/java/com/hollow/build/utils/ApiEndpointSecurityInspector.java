@@ -1,5 +1,6 @@
 package com.hollow.build.utils;
 
+import com.hollow.build.config.OpenApiConfiguration;
 import com.hollow.build.config.OpenApiConfigurationProperties;
 import com.hollow.build.config.PublicEndpoint;
 import io.swagger.v3.oas.models.PathItem.HttpMethod;
@@ -9,7 +10,6 @@ import lombok.Getter;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 
 import java.util.ArrayList;
@@ -27,7 +27,8 @@ public class ApiEndpointSecurityInspector {
 
 	private final RequestMappingHandlerMapping requestHandlerMapping;
 	private final OpenApiConfigurationProperties openApiConfigurationProperties;
-	private static final List<String> SWAGGER_V3_PATHS = List.of("/swagger-ui**/**", "/v3/api-docs**/**");
+	private final PathMatcherUtils pathMatcherUtils;
+
 	
 	@Getter
 	private List<String> publicGetEndpoints = new ArrayList<String>();
@@ -55,7 +56,7 @@ public class ApiEndpointSecurityInspector {
 
 		final var openApiEnabled = openApiConfigurationProperties.isEnabled();
 		if (openApiEnabled) {
-			publicGetEndpoints.addAll(SWAGGER_V3_PATHS);
+			publicGetEndpoints.addAll(OpenApiConfiguration.SWAGGER_V3_PATHS);
 		}
 
 	}
@@ -66,7 +67,7 @@ public class ApiEndpointSecurityInspector {
 		var unsecuredApiPaths = getUnsecuredApiPaths(requestHttpMethod);
 		unsecuredApiPaths = Optional.ofNullable(unsecuredApiPaths).orElseGet(ArrayList::new);
 
-		return unsecuredApiPaths.stream().anyMatch(apiPath -> new AntPathMatcher().match(apiPath, request.getRequestURI()));
+		return pathMatcherUtils.matchAny(unsecuredApiPaths, request.getRequestURI());
 	}
 
 
