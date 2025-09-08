@@ -11,6 +11,8 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import lombok.RequiredArgsConstructor;
 
+import java.util.List;
+
 @Configuration
 @RequiredArgsConstructor
 @EnableConfigurationProperties(OpenApiConfigurationProperties.class)
@@ -20,6 +22,7 @@ public class OpenApiConfiguration {
 
     private static final String BEARER_AUTH_COMPONENT_NAME = "Bearer Authentication";
     private static final String BEARER_AUTH_SCHEME = "Bearer";
+    public static final List<String> SWAGGER_V3_PATHS = List.of("/swagger-ui**/**", "/v3/api-docs**/**");
 
     @Bean
     public OpenAPI openApi() {

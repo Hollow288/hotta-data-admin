@@ -5,10 +5,12 @@ import com.alibaba.fastjson2.JSONObject;
 import com.hollow.build.common.ApiResponse;
 import com.hollow.build.common.enums.GlobalErrorCodeConstants;
 import com.hollow.build.config.BypassRateLimit;
+import com.hollow.build.config.OpenApiConfiguration;
 import com.hollow.build.service.RateLimitingService;
 import com.hollow.build.utils.ApiEndpointSecurityInspector;
 import com.hollow.build.utils.AuthenticatedUserIdProvider;
 import com.hollow.build.utils.LoginAttemptService;
+import com.hollow.build.utils.PathMatcherUtils;
 import io.github.bucket4j.ConsumptionProbe;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
@@ -33,14 +36,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
 	private final RequestMappingHandlerMapping requestHandlerMapping;
 	private final AuthenticatedUserIdProvider authenticatedUserIdProvider;
 	private final ApiEndpointSecurityInspector apiEndpointSecurityInspector;
-
+	private final PathMatcherUtils pathMatcherUtils;
 
 	@Override
 	@SneakyThrows
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) {
 		final var unsecuredApiBeingInvoked = apiEndpointSecurityInspector.isUnsecureRequest(request);
 
-		if (unsecuredApiBeingInvoked) {
+		if (unsecuredApiBeingInvoked && !pathMatcherUtils.matchAny(OpenApiConfiguration.SWAGGER_V3_PATHS, request.getRequestURI())) {
 			final var isRequestBypassed = isBypassed(request);
 
 			if (!isRequestBypassed) {
