@@ -1,9 +1,15 @@
 package com.hollow.build.utils;
 
+import com.alibaba.fastjson2.JSONObject;
+import com.hollow.build.common.ApiResponse;
+import com.hollow.build.common.enums.GlobalErrorCodeConstants;
 import com.hollow.build.config.TokenConfigurationProperties;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+
+import java.io.IOException;
 
 @Component
 @RequiredArgsConstructor
@@ -73,6 +79,15 @@ public class LoginAttemptService {
         int ipFailCount = ipFailStr == null ? 0 : Integer.parseInt(ipFailStr);
 
         return userFailCount >= getUsernameMaxAttempt() || ipFailCount >= getIpMaxAttempt();
+    }
+
+
+    public void  returnTokenError(HttpServletResponse response) throws IOException {
+        ApiResponse<Object> result = new ApiResponse<>(GlobalErrorCodeConstants.UNAUTHORIZED.getCode(), GlobalErrorCodeConstants.UNAUTHORIZED.getMsg());
+        response.setStatus(200);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("utf-8");
+        response.getWriter().write(JSONObject.toJSONString(result));
     }
 
 

@@ -3,6 +3,7 @@ package com.hollow.build.config;
 
 import com.hollow.build.filter.JwtAuthenticationFilter;
 import com.hollow.build.filter.RateLimitFilter;
+import com.hollow.build.handler.CustomAuthenticationEntryPoint;
 import com.hollow.build.utils.ApiEndpointSecurityInspector;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
@@ -32,6 +33,7 @@ public class SecurityConfiguration {
 	private final RateLimitFilter rateLimitFilter;
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
 	private final ApiEndpointSecurityInspector apiEndpointSecurityInspector;
+	private final CustomAuthenticationEntryPoint customEntryPoint;
 	
 	@Bean
 	@SneakyThrows
@@ -47,7 +49,10 @@ public class SecurityConfiguration {
 					.anyRequest().authenticated();
 				})
 			.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-			.addFilterAfter(rateLimitFilter, JwtAuthenticationFilter.class);
+			.addFilterAfter(rateLimitFilter, JwtAuthenticationFilter.class)
+			.exceptionHandling(exceptions ->
+					exceptions.authenticationEntryPoint(customEntryPoint)
+			);
 
 		return http.build();
 	}

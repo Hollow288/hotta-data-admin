@@ -8,6 +8,7 @@ import com.hollow.build.config.BypassRateLimit;
 import com.hollow.build.service.RateLimitingService;
 import com.hollow.build.utils.ApiEndpointSecurityInspector;
 import com.hollow.build.utils.AuthenticatedUserIdProvider;
+import com.hollow.build.utils.LoginAttemptService;
 import io.github.bucket4j.ConsumptionProbe;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 @RequiredArgsConstructor
 public class RateLimitFilter extends OncePerRequestFilter {
 
+	private final LoginAttemptService loginAttemptService;
 	private final RateLimitingService rateLimitingService;
 	private final RequestMappingHandlerMapping requestHandlerMapping;
 	private final AuthenticatedUserIdProvider authenticatedUserIdProvider;
@@ -38,12 +40,22 @@ public class RateLimitFilter extends OncePerRequestFilter {
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) {
 		final var unsecuredApiBeingInvoked = apiEndpointSecurityInspector.isUnsecureRequest(request);
 
-		if (!unsecuredApiBeingInvoked && authenticatedUserIdProvider.isAvailable()) {
+		if (unsecuredApiBeingInvoked) {
 			final var isRequestBypassed = isBypassed(request);
 
 			if (!isRequestBypassed) {
-				final var userId = authenticatedUserIdProvider.getUserId();
-				final var bucket = rateLimitingService.getBucket(userId);
+				// 不再根据用户ID进行限流
+				//	final var id = authenticatedUserIdProvider.getUserId();
+
+				String apiKey = request.getHeader("X-API-KEY");
+
+				if (apiKey == null || apiKey.isBlank()) {
+					// 没有提供 API Key，直接返回 401
+					loginAttemptService.returnTokenError(response);
+					return;
+				}
+
+				final var bucket = rateLimitingService.getBucket(apiKey);
 				final var consumptionProbe = bucket.tryConsumeAndReturnRemaining(1);
 				final var isConsumptionPassed = consumptionProbe.isConsumed();
 

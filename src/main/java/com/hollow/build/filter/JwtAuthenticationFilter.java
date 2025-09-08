@@ -1,11 +1,10 @@
 package com.hollow.build.filter;
 
 import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONObject;
-import com.hollow.build.common.ApiResponse;
-import com.hollow.build.common.enums.GlobalErrorCodeConstants;
+
 import com.hollow.build.utils.ApiEndpointSecurityInspector;
 import com.hollow.build.utils.JwtUtil;
+import com.hollow.build.utils.LoginAttemptService;
 import com.hollow.build.utils.RedisUtil;
 import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
@@ -16,9 +15,6 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
-
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
@@ -37,8 +33,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final RedisUtil redisUtil;
     private final JwtUtil jwtUtil;
-    private final ObjectMapper objectMapper;
     private final ApiEndpointSecurityInspector apiEndpointSecurityInspector;
+    private final LoginAttemptService loginAttemptService;
 
     private static final String AUTHORIZATION_HEADER = "Authorization";
     private static final String BEARER_PREFIX = "Bearer ";
@@ -75,7 +71,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     userid = claims.getSubject();
                 } catch (Exception e) {
                     e.printStackTrace();
-                    this.returnTokenError(response);
+                    loginAttemptService.returnTokenError(response);
                     return;
                 }
 
@@ -84,7 +80,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
                 if(Objects.isNull(result)){
                     //throw new RuntimeException("用户未登录或AccessToken过期");
-                    this.returnTokenError(response);
+                    loginAttemptService.returnTokenError(response);
                     return;
                 }
 
@@ -97,20 +93,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } else {
-                returnTokenError(response);
+                loginAttemptService.returnTokenError(response);
                 return;
             }
         }
         filterChain.doFilter(request, response);
     }
 
-
-    public void  returnTokenError(HttpServletResponse response) throws IOException {
-        ApiResponse<Object> result = new ApiResponse<>(GlobalErrorCodeConstants.UNAUTHORIZED.getCode(), GlobalErrorCodeConstants.UNAUTHORIZED.getMsg());
-        response.setStatus(200);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("utf-8");
-        response.getWriter().write(JSONObject.toJSONString(result));
-    }
 
 }

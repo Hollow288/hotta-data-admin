@@ -340,5 +340,40 @@ public class MinioUtil {
 
             return minioConfigurationProperties.getEndpoint() + '/' + baseUrl + encodedFileName;
     }
+
+
+    /**
+     * 将原始文件路径生成可访问 URL，并可附加额外前缀路径
+     *
+     * @param originalPath 原始文件相对路径，例如 "Resources/Icon/skill/WeaponSkill/skill_bow_power.png"
+     * @param prefix       可选前缀路径，例如 "images"，如果传 null 或空则不添加
+     * @return 拼接后的完整 URL
+     */
+    public String fileUrlEncoderChance(String originalPath, String prefix) {
+        if (originalPath == null || originalPath.isBlank()) {
+            return "";
+        }
+
+        // 提取文件名
+        String fileName = originalPath.substring(originalPath.lastIndexOf('/') + 1);
+
+        // URL 编码文件名
+        String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                .replaceAll("\\+", "%20")
+                .replaceAll("%21", "!")
+                .replaceAll("%27", "'")
+                .replaceAll("%28", "(")
+                .replaceAll("%29", ")")
+                .replaceAll("%7E", "~");
+
+        // 提取路径前缀（原目录）
+        String baseUrl = originalPath.substring(0, originalPath.lastIndexOf('/') + 1);
+
+        // 处理可选 prefix，保证不为空且不重复 '/'
+        String finalPrefix = (prefix == null || prefix.isBlank()) ? "" : prefix + "/";
+
+        return minioConfigurationProperties.getEndpoint() + "/" + finalPrefix + baseUrl + encodedFileName;
+    }
+
 }
  

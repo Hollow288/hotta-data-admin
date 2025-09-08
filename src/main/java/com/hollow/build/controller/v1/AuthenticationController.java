@@ -2,6 +2,7 @@ package com.hollow.build.controller.v1;
 
 
 import com.hollow.build.common.ApiResponse;
+import com.hollow.build.config.BypassRateLimit;
 import com.hollow.build.config.PublicEndpoint;
 import com.hollow.build.dto.TokenSuccessResponseDto;
 import com.hollow.build.dto.UserLoginRequestDto;
@@ -28,6 +29,7 @@ public class AuthenticationController {
 
 
 	@PublicEndpoint
+	@BypassRateLimit
 	@PostMapping(value = "/auth/login")
 	@Operation(summary = "Validates user login credentials", description = "Validates user login credentials and returns access-token on successful authentication")
 	public ApiResponse<TokenSuccessResponseDto> login(@RequestBody final UserLoginRequestDto userLoginRequest, HttpServletRequest request) {
