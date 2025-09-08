@@ -3,6 +3,7 @@ package com.hollow.build.entity.mongo;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
@@ -18,6 +19,10 @@ public class Weapons implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
+
+//    @Id
+//    @Schema(description = "主键ID（MongoDB自动生成）")
+//    private String id;
 
     @Schema(description = "武器唯一标识", example = "fan_superpower")
     private String weaponKey;
