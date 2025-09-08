@@ -16,7 +16,7 @@ spring:
       host: ${REDIS_HOST:}
       port: ${REDIS_PORT:}
     mongodb:
-      uri: ${MYSQL_URI:}
+      uri: ${MONGODB_URI:}
   cache:
     type: redis
 
