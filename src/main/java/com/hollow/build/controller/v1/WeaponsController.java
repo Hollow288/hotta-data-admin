@@ -1,8 +1,8 @@
 package com.hollow.build.controller.v1;
 
 import com.hollow.build.common.ApiResponse;
-import com.hollow.build.config.BypassRateLimit;
-import com.hollow.build.dto.WeaponsResponseDto;
+import com.hollow.build.config.PublicEndpoint;
+import com.hollow.build.entity.mongo.Weapons;
 import com.hollow.build.service.WeaponsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -23,21 +23,22 @@ public class WeaponsController {
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
-//    @PublicEndpoint
+//    @PreAuthorize("hasRole('ADMIN')")
+    @PublicEndpoint
 //    @BypassRateLimit
     @Operation(summary = "查询所有武器", description = "获取所有武器的基本信息")
-    public ApiResponse<List<WeaponsResponseDto>> getAllWeapons() {
+    public ApiResponse<List<Weapons>> getAllWeapons() {
         return ApiResponse.success(weaponsService.getAllWeapons());
     }
 
 
     @GetMapping("/{item_key}")
-    @PreAuthorize("hasRole('ADMIN')")
+//    @PreAuthorize("hasRole('ADMIN')")
 //    @BypassRateLimit
+    @PublicEndpoint
     @Operation(summary = "根据key查询武器", description = "根据key获取武器的详细信息")
-    public ApiResponse<WeaponsResponseDto> getWeaponByKey(@PathVariable(value = "item_key") String itemKey) {
-        WeaponsResponseDto dto = weaponsService.getWeaponByKey(itemKey);
-        return ApiResponse.success(dto);
+    public ApiResponse<Weapons> getWeaponByKey(@PathVariable(value = "item_key") String itemKey) {
+        Weapons weapons = weaponsService.getWeaponByKey(itemKey);
+        return ApiResponse.success(weapons);
     }
 }

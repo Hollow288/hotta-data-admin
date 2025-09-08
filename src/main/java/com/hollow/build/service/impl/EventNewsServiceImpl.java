@@ -1,10 +1,9 @@
 package com.hollow.build.service.impl;
 
-import com.hollow.build.common.ApiResponse;
 import com.hollow.build.dto.EventNewsDto;
 import com.hollow.build.dto.PageResult;
-import com.hollow.build.entity.EventNews;
-import com.hollow.build.mapper.EventNewsMapper;
+import com.hollow.build.entity.mysql.EventNews;
+import com.hollow.build.repository.mysql.EventNewsMapper;
 import com.hollow.build.service.EventNewsService;
 import com.hollow.build.utils.DtoMapperUtil;
 import com.hollow.build.utils.MinioUtil;
@@ -14,7 +13,6 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 

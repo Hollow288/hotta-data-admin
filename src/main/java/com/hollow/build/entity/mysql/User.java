@@ -1,4 +1,4 @@
-package com.hollow.build.entity;
+package com.hollow.build.entity.mysql;
 
 
 

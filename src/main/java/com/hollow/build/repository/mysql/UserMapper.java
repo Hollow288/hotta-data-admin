@@ -1,8 +1,7 @@
-package com.hollow.build.mapper;
+package com.hollow.build.repository.mysql;
 
 
-import com.hollow.build.entity.Role;
-import com.hollow.build.entity.User;
+import com.hollow.build.entity.mysql.User;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
@@ -19,4 +18,7 @@ public interface UserMapper {
 
     @Select("select limit_per_hour from role where role_id in (select role_id from user_role where user_id = #{userId}) order by limit_per_hour desc limit 1")
     Integer getLimitPerHourByUserId(Long userId);
+
+    @Select("select limit_per_hour from api_limit where api_key = #{apiKey}")
+    Integer getLimitPerHourByApiKey(String apiKey);
 }

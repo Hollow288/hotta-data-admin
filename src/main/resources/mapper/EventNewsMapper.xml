@@ -4,10 +4,10 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 
-<mapper namespace="com.hollow.build.mapper.EventNewsMapper">
+<mapper namespace="com.hollow.build.repository.mysql.EventNewsMapper">
 
     <!-- 分页查询 -->
-    <select id="selectByPage" resultType="com.hollow.build.entity.EventNews">
+    <select id="selectByPage" resultType="com.hollow.build.entity.mysql.EventNews">
         SELECT
         news_id, news_title, news_describe, news_img_url,
         news_start, news_end, del_flag

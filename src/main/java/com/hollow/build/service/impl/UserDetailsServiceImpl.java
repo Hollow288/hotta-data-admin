@@ -2,16 +2,14 @@ package com.hollow.build.service.impl;
 
 
 import com.hollow.build.dto.CustomUserDetails;
-import com.hollow.build.mapper.UserMapper;
+import com.hollow.build.repository.mysql.UserMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 

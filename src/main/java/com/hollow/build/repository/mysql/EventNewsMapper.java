@@ -1,11 +1,10 @@
-package com.hollow.build.mapper;
+package com.hollow.build.repository.mysql;
 
 import com.hollow.build.dto.EventNewsDto;
-import com.hollow.build.entity.EventNews;
+import com.hollow.build.entity.mysql.EventNews;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
-import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 

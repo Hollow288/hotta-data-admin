@@ -1,6 +1,6 @@
 package com.hollow.build.dto;
 
-import com.hollow.build.entity.User;
+import com.hollow.build.entity.mysql.User;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;

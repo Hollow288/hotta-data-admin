@@ -1,12 +1,12 @@
 package com.hollow.build.service;
 
-import com.hollow.build.dto.WeaponsResponseDto;
+import com.hollow.build.entity.mongo.Weapons;
 
 import java.util.List;
 
 public interface WeaponsService {
 
-    List<WeaponsResponseDto> getAllWeapons();
+    List<Weapons> getAllWeapons();
 
-    WeaponsResponseDto getWeaponByKey(String weaponsKey);
+    Weapons getWeaponByKey(String weaponsKey);
 }
