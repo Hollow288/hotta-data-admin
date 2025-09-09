@@ -5,6 +5,7 @@ import com.hollow.build.repository.mongo.FoodRepository;
 import com.hollow.build.service.FoodService;
 import com.hollow.build.utils.MinioUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,6 +19,7 @@ public class FoodServiceImpl implements FoodService {
     private final MinioUtil minioUtil;
     
     @Override
+    @Cacheable(value = "food_all")
     public List<Food> getAllFood() {
         return foodRepository.findAll().stream()
                 .peek(food -> {
@@ -26,6 +28,7 @@ public class FoodServiceImpl implements FoodService {
     }
 
     @Override
+    @Cacheable(value = "food", key = "#itemKey")
     public Food getFoodByKey(String itemKey) {
         Food food = foodRepository.findByFoodKey(itemKey);
 
