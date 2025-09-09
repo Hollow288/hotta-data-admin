@@ -19,9 +19,9 @@ public class Recipes implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    @Id
-    @Schema(description = "主键ID（MongoDB自动生成）")
-    private String id;
+//    @Id
+//    @Schema(description = "主键ID（MongoDB自动生成）")
+//    private String id;
 
     @Schema(description = "菜谱Key")
     private String recipesKey;
