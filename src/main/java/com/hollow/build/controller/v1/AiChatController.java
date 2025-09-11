@@ -24,7 +24,7 @@ public class AiChatController {
 
     @PostMapping("")
     @PublicEndpoint
-    @BypassRateLimit
+//    @BypassRateLimit
     @Operation(summary = "聊天", description = "根据会话ID聊天")
     public CompletableFuture<ApiResponse<ChatForm>> chat(ChatForm chatForm) {
        return aiChatService.chat(chatForm);
