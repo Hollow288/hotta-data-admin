@@ -22,6 +22,7 @@ public class OpenApiConfiguration {
 
     private static final String BEARER_AUTH_COMPONENT_NAME = "Bearer Authentication";
     private static final String BEARER_AUTH_SCHEME = "Bearer";
+    private static final String API_KEY_HEADER_NAME = "X-API-KEY";
     public static final List<String> SWAGGER_V3_PATHS = List.of("/swagger-ui**/**", "/v3/api-docs**/**");
 
     @Bean
@@ -37,9 +38,18 @@ public class OpenApiConfiguration {
                         .addSecuritySchemes(BEARER_AUTH_COMPONENT_NAME,
                                 new SecurityScheme()
                                         .type(SecurityScheme.Type.HTTP)
-                                        .scheme(BEARER_AUTH_SCHEME)))
+                                        .in(SecurityScheme.In.HEADER)
+                                        .scheme(BEARER_AUTH_SCHEME))
+                        // X-API-KEY 请求头
+                        .addSecuritySchemes(API_KEY_HEADER_NAME,
+                                new SecurityScheme()
+                                        .type(SecurityScheme.Type.APIKEY)
+                                        .in(SecurityScheme.In.HEADER)
+                                        .name(API_KEY_HEADER_NAME))
+                )
                 .addSecurityItem(new SecurityRequirement()
-                        .addList(BEARER_AUTH_COMPONENT_NAME));
+                        .addList(BEARER_AUTH_COMPONENT_NAME)
+                        .addList(API_KEY_HEADER_NAME));
     }
 
 }
