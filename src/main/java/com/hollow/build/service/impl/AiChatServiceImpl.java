@@ -32,7 +32,7 @@ public class AiChatServiceImpl implements AiChatService {
     private final RedisUtil redisUtil;
 
     public AiChatServiceImpl(AiConfigurationProperties aiConfigurationProperties, RedisUtil redisUtil) {
-        final var proxySelector = ProxySelector.of(new InetSocketAddress("127.0.0.1", 7890));
+        final var proxySelector = ProxySelector.of(new InetSocketAddress(aiConfigurationProperties.getProxyAddress(), 7890));
         this.httpClient = HttpClient.newBuilder()
                 .proxy(proxySelector)
                 .connectTimeout(Duration.ofSeconds(40))

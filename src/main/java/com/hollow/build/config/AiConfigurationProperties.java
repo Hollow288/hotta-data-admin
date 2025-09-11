@@ -19,4 +19,6 @@ public class AiConfigurationProperties {
 
     private String uri;
 
+    private String proxyAddress;
+
 }
