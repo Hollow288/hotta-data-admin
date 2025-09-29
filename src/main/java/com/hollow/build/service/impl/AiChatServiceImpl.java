@@ -74,9 +74,11 @@ public class AiChatServiceImpl implements AiChatService {
 
             String requestBodyJson = JSON.toJSONString(requestBody);
 
+            String thisUseKey = getMaybeAPIAvailable();
+
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(aiConfigurationProperties.getUri()))
-                    .header("Authorization", "Bearer " + aiConfigurationProperties.getApiKey())
+                    .header("Authorization", "Bearer " + thisUseKey)
                     .header("Content-Type", "application/json")
                     .header("Accept", "application/json")
                     .timeout(Duration.ofSeconds(60))
@@ -85,34 +87,53 @@ public class AiChatServiceImpl implements AiChatService {
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-            Map<String, Object> responseMap = JSON.parseObject(response.body(), new TypeReference<Map<String, Object>>(){});
-            List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
+            String responseBody = response.body();
 
-            Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-            Object content = message.get("content");
-            String reply;
 
-            if (content instanceof String str) {
-                reply = str;
-            } else if (content instanceof List<?> list && !list.isEmpty()) {
-                Map<String, Object> firstItem = (Map<String, Object>) list.get(0);
-                reply = (String) firstItem.getOrDefault("text", "");
+            if (responseBody.startsWith("[")) {
+                // 返回的是数组，可能是错误信息
+                List<Map<String, Object>> errorList = JSON.parseObject(responseBody, new TypeReference<List<Map<String, Object>>>(){});
+                Map<String, Object> errorInfo = (Map<String, Object>) errorList.get(0).get("error");
+
+                int code = (int) errorInfo.getOrDefault("code", 0);
+                String message = (String) errorInfo.getOrDefault("message", "未知错误");
+
+                if(code == 429){
+                    redisUtil.set("ai-limits-key:"+ thisUseKey, null, 86400);
+                }
+
+                // 这里可以直接返回失败响应
+                return CompletableFuture.completedFuture(
+                        new ApiResponse<>(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(), message, null)
+                );
             } else {
-                reply = "";
+                // 正常返回对象
+                Map<String, Object> responseMap = JSON.parseObject(responseBody, new TypeReference<Map<String, Object>>(){});
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
+                Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+                Object content = message.get("content");
+
+                String reply;
+                if (content instanceof String str) {
+                    reply = str;
+                } else if (content instanceof List<?> list && !list.isEmpty()) {
+                    Map<String, Object> firstItem = (Map<String, Object>) list.get(0);
+                    reply = (String) firstItem.getOrDefault("text", "");
+                } else {
+                    reply = "";
+                }
+
+                // 保存到 Redis
+                messages.add(Map.of("role", "assistant", "content", reply));
+                redisUtil.set(redisKey, JSON.toJSONString(messages), 3600);
+
+                return CompletableFuture.completedFuture(
+                        ApiResponse.success(ChatForm.builder()
+                                .memoryId(memoryId)
+                                .message(reply)
+                                .build())
+                );
             }
-
-            // 将 AI 回复追加到 messages
-            messages.add(Map.of("role", "assistant", "content", reply));
-
-            // 存入 Redis，过期时间 3600 秒
-            redisUtil.set(redisKey, JSON.toJSONString(messages), 3600);
-
-            return CompletableFuture.completedFuture(
-                    ApiResponse.success(ChatForm.builder()
-                            .memoryId(memoryId)
-                            .message(reply)
-                            .build())
-            );
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -124,5 +145,14 @@ public class AiChatServiceImpl implements AiChatService {
                     )
             );
         }
+    }
+
+    private String getMaybeAPIAvailable(){
+        for (String apiKey : aiConfigurationProperties.getApiKey()) {
+            if(!redisUtil.hasKey("ai-limits-key:" + apiKey)){
+                return apiKey;
+            }
+        }
+        return null;
     }
 }

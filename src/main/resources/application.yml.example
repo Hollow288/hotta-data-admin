@@ -61,3 +61,4 @@ com:
       model: ${AI_MODEL}
       uri: ${AI_URI}
       default-prompt: ${AI_DEFAULTPROMPT}
+      proxy-address: ${AI_PROXYADDRESS}
