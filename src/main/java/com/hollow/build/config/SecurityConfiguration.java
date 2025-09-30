@@ -72,7 +72,7 @@ public class SecurityConfiguration {
 		final var corsConfiguration = new CorsConfiguration();
 		corsConfiguration.setAllowedOrigins(List.of("*"));
 		corsConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-		corsConfiguration.setAllowedHeaders(List.of("Authorization", "Origin", "Content-Type", "Accept"));
+		corsConfiguration.setAllowedHeaders(List.of("Authorization", "Origin", "Content-Type", "Accept", "X-API-KEY"));
 		corsConfiguration.setExposedHeaders(List.of("Content-Type", "X-Rate-Limit-Retry-After-Seconds", "X-Rate-Limit-Remaining"));
 
 		final var corsConfigurationSource = new UrlBasedCorsConfigurationSource();
