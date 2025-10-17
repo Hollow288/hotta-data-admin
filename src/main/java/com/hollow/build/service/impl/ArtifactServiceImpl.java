@@ -24,6 +24,7 @@ public class ArtifactServiceImpl implements ArtifactService {
         return artifactRepository.findAll().stream()
                 .peek(artifact -> {
                     artifact.setArtifactIcon(minioUtil.fileUrlEncoderChance(artifact.getArtifactIcon(),"hotta"));
+                    artifact.setArtifactThumbnail(minioUtil.fileUrlEncoderChance(artifact.getArtifactThumbnail(),"hotta"));
                 }).toList();
     }
 
@@ -38,6 +39,7 @@ public class ArtifactServiceImpl implements ArtifactService {
 
         // 拼接主图标
         artifact.setArtifactIcon(minioUtil.fileUrlEncoderChance(artifact.getArtifactIcon(),"hotta"));
+        artifact.setArtifactThumbnail(minioUtil.fileUrlEncoderChance(artifact.getArtifactThumbnail(),"hotta"));
 
         return artifact;
     }
