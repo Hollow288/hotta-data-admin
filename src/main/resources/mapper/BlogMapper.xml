@@ -11,7 +11,7 @@
         SELECT DATE_FORMAT(created_at, '%Y-%m') AS `year_month`, COUNT(*) AS count
         FROM blog_posts
         WHERE del_flag = '0'
-        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+        GROUP BY DATE_FORMAT(created_at, '%Y-%m') ORDER BY DATE_FORMAT(created_at, '%Y-%m') DESC
     </select>
 
 
