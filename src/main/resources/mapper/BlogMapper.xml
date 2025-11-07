@@ -23,4 +23,24 @@
     <select id="selectBlogById" resultType="com.hollow.build.entity.mysql.BlogPost">
         select *  from blog_posts where del_flag = '0' and  blog_id = #{articleId}
     </select>
+
+
+
+    <select id="selectBlogByKeyWord" resultType="com.hollow.build.dto.BlogDateListDto">
+        SELECT
+            blog_Id,
+            title,
+            CASE
+                WHEN content LIKE CONCAT('%', #{keyWord}, '%') THEN
+                    SUBSTRING(content,
+                              GREATEST(LOCATE(#{keyWord}, content) - 40, 1),
+                              80 + LENGTH(#{keyWord})
+                    )
+                ELSE summary
+                END AS summary,
+            created_at
+        FROM blog_posts
+        WHERE del_flag = '0'
+          AND (title LIKE CONCAT('%', #{keyWord}, '%') OR content LIKE CONCAT('%', #{keyWord}, '%'))
+    </select>
 </mapper>

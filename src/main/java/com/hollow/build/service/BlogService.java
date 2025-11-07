@@ -12,4 +12,6 @@ public interface BlogService {
     List<BlogDateListDto> selectBlogDateListByDate(String date);
 
     BlogPost selectBlogById(String articleId);
+
+    List<BlogDateListDto> selectBlogByKeyWord(String keyWord);
 }

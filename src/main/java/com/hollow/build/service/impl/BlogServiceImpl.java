@@ -31,4 +31,12 @@ public class BlogServiceImpl implements BlogService {
     public BlogPost selectBlogById(String articleId) {
         return blogMapper.selectBlogById(articleId);
     }
+
+    @Override
+    public List<BlogDateListDto> selectBlogByKeyWord(String keyWord) {
+
+        List<BlogDateListDto> blogPosts = blogMapper.selectBlogByKeyWord(keyWord);
+
+        return blogPosts;
+    }
 }

@@ -62,4 +62,16 @@ public class BlogController {
     }
 
 
+    @GetMapping("/search/{keyWord}")
+    @Operation(
+            summary = "根据关键词查询博客",
+            description = "根据关键词查询博客"
+    )
+    //    @BypassRateLimit
+    @PublicEndpoint
+    public ApiResponse<List<BlogDateListDto>> selectBlogByKeyWord(@PathVariable("keyWord") String keyWord){
+        return ApiResponse.success(BlogService.selectBlogByKeyWord(keyWord));
+    }
+
+
 }

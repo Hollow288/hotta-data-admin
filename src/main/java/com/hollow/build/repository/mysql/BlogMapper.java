@@ -15,4 +15,6 @@ public interface BlogMapper {
     List<BlogDateListDto> getBlogDateListByDate(String date);
 
     BlogPost selectBlogById(String articleId);
+
+    List<BlogDateListDto> selectBlogByKeyWord(String keyWord);
 }
