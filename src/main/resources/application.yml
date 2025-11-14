@@ -57,8 +57,14 @@ com:
       access-key: ${MINIO_ACCESSKEY:}
       secret-key: ${MINIO_SECRETKEY:}
     ai:
-      api-key: ${AI_APIKEY}
-      model: ${AI_MODEL}
-      uri: ${AI_URI}
-      default-prompt: ${AI_DEFAULTPROMPT}
-      proxy-address: ${AI_PROXYADDRESS}
+      text-api-key: ${AI_TEXT_APIKEY}
+      text-model: ${AI_TEXT_MODEL}
+      text-uri: ${AI_TEXT_URI}
+      text-default-prompt: ${AI_TEXT_DEFAULT_PROMPT}
+
+      image-api-key: ${AI_IMAGE_APIKEY}
+      image-model: ${AI_IMAGE_MODEL}
+      image-uri: ${AI_IMAGE_URI}
+      image-default-prompt: ${AI_IMAGE_DEFAULT_PROMPT}
+
+      proxy-address: ${AI_PROXY_ADDRESS}
