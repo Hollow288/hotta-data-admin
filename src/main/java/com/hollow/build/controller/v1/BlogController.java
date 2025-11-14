@@ -1,6 +1,7 @@
 package com.hollow.build.controller.v1;
 
 import com.hollow.build.common.ApiResponse;
+import com.hollow.build.config.BypassRateLimit;
 import com.hollow.build.config.PublicEndpoint;
 import com.hollow.build.dto.BlogDateListDto;
 import com.hollow.build.dto.BlogDateMenuDto;
@@ -31,7 +32,7 @@ public class BlogController {
             summary = "查询博客日期/数量",
             description = "查询博客日期/数量"
     )
-    //    @BypassRateLimit
+    @BypassRateLimit
     @PublicEndpoint
     public ApiResponse<List<BlogDateMenuDto>> selectBlogDateMenu(){
         return ApiResponse.success(BlogService.selectBlogDateMenu());
@@ -43,7 +44,7 @@ public class BlogController {
             summary = "根据日期查询博客列表",
             description = "根据日期查询博客列表"
     )
-    //    @BypassRateLimit
+    @BypassRateLimit
     @PublicEndpoint
     public ApiResponse<List<BlogDateListDto>> selectBlogDateListByDate(@PathVariable("date") String date){
         return ApiResponse.success(BlogService.selectBlogDateListByDate(date));
@@ -55,7 +56,7 @@ public class BlogController {
             summary = "根据ID查询博客",
             description = "根据ID查询博客"
     )
-    //    @BypassRateLimit
+    @BypassRateLimit
     @PublicEndpoint
     public ApiResponse<BlogPost> selectBlogById(@PathVariable("articleId") String articleId){
         return ApiResponse.success(BlogService.selectBlogById(articleId));
@@ -67,7 +68,7 @@ public class BlogController {
             summary = "根据关键词查询博客",
             description = "根据关键词查询博客"
     )
-    //    @BypassRateLimit
+    @BypassRateLimit
     @PublicEndpoint
     public ApiResponse<List<BlogDateListDto>> selectBlogByKeyWord(@PathVariable("keyWord") String keyWord){
         return ApiResponse.success(BlogService.selectBlogByKeyWord(keyWord));
