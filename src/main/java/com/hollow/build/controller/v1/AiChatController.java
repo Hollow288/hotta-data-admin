@@ -41,6 +41,15 @@ public class AiChatController {
 
 
 
+    @PostMapping("/remove")
+    @PublicEndpoint
+    @Operation(summary = "清理该ID下的临时会话记录", description = "清理该ID下的临时会话记录")
+    public CompletableFuture<ApiResponse<ChatForm>> remove(@RequestBody ChatForm chatForm) {
+        return aiChatService.remove(chatForm);
+    }
+
+
+
 
 
 }

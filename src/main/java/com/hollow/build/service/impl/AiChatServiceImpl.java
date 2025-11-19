@@ -228,6 +228,41 @@ public class AiChatServiceImpl implements AiChatService {
         }
     }
 
+    @Override
+    public CompletableFuture<ApiResponse<ChatForm>> remove(ChatForm chatForm) {
+        String memoryId = null;
+        try {
+            memoryId = chatForm.getMemoryId();
+            if (memoryId == null || memoryId.isBlank()) {
+                return CompletableFuture.completedFuture(
+                        new ApiResponse<>(
+                                GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                                "未找到对应的临时聊天记录",
+                                null
+                        )
+                );
+            }
+            redisUtil.removeKey("chat:" + memoryId);
+
+            return CompletableFuture.completedFuture(
+                    ApiResponse.success(ChatForm.builder()
+                            .memoryId(memoryId)
+                            .message("清理成功")
+                            .build())
+            );
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return CompletableFuture.completedFuture(
+                    new ApiResponse<>(
+                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getMsg(),
+                            null
+                    )
+            );
+        }
+    }
+
 
     private String getMaybeAPIAvailable(String apiKeyType){
         List<String> apiKeys = List.of();

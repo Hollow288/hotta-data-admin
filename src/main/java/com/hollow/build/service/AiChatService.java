@@ -12,4 +12,6 @@ public interface AiChatService {
     CompletableFuture<ApiResponse<ChatForm>> chat(ChatForm chatForm);
 
     CompletableFuture<ApiResponse<ImageForm>> image(ImageForm imageForm);
+
+    CompletableFuture<ApiResponse<ChatForm>> remove(ChatForm chatForm);
 }
