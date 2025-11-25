@@ -43,4 +43,53 @@
         WHERE del_flag = '0'
           AND (title LIKE CONCAT('%', #{keyWord}, '%') OR content LIKE CONCAT('%', #{keyWord}, '%'))
     </select>
+
+
+    <select id="getCountBlog" resultType="java.lang.Integer">
+        SELECT count(*) FROM blog_posts b WHERE b.del_flag = '0'
+        <if test="searchName != null and searchName != ''">
+            and b.title like concat('%',#{searchName},'%')
+        </if>
+    </select>
+
+
+
+    <select id="getBlogInfoByPage" resultType="com.hollow.build.dto.BlogDateListDto">
+        SELECT * FROM blog_posts b
+        WHERE del_flag = '0'
+        <if test="searchName != null and searchName != ''">
+            and w.title like concat('%',#{searchName},'%')
+        </if>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+
+    <insert id="addBlogPost" parameterType="com.hollow.build.entity.mysql.BlogPost" useGeneratedKeys="true" keyProperty="blogId">
+        INSERT INTO blog_posts
+        (title, summary, content, created_at)
+        VALUES
+            (#{title}, #{summary}, #{content}, NOW())
+    </insert>
+
+
+    <update id="updateBlog">
+        UPDATE blog_posts
+        SET
+            title = #{blogPost.title},
+            summary = #{blogPost.summary},
+            content = #{blogPost.content}
+        WHERE blog_id = #{blogId}
+    </update>
+
+
+    <update id="deleteBlog">
+        UPDATE blog_posts
+        SET del_flag = '1'
+        WHERE blog_id IN
+        <foreach item="id" collection="blogList" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+
 </mapper>
