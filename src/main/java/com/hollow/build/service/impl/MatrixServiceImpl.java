@@ -28,7 +28,7 @@ public class MatrixServiceImpl implements MatrixService {
     }
 
     @Override
-    @Cacheable(value = "matrix_all")
+    @Cacheable(value = "matrix", key = "#itemKey")
     public Matrix getMatrixByKey(String itemKey) {
         Matrix matrix = matrixRepository.findByMatrixKey(itemKey);
 

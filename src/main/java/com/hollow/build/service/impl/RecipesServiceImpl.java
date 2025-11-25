@@ -41,7 +41,7 @@ public class RecipesServiceImpl implements RecipesService {
     }
 
     @Override
-    @Cacheable(value = "recipes_all")
+    @Cacheable(value = "recipes", key = "#itemKey")
     public Recipes getRecipesByKey(String itemKey) {
         Recipes recipes = recipesRepository.findByRecipesKey(itemKey);
 
