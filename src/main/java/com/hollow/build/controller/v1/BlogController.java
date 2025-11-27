@@ -32,6 +32,8 @@ public class BlogController {
             summary = "查询博客日期/数量",
             description = "查询博客日期/数量"
     )
+    @BypassRateLimit
+    @PublicEndpoint
     public ApiResponse<List<BlogDateMenuDto>> selectBlogDateMenu(){
         return ApiResponse.success(BlogService.selectBlogDateMenu());
     }
