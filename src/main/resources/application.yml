@@ -68,3 +68,5 @@ com:
       image-default-prompt: ${AI_IMAGE_DEFAULT_PROMPT}
 
       proxy-address: ${AI_PROXY_ADDRESS}
+      proxy-port: ${AI_PROXY_PORT}
+      proxy-enabled: ${AI_PROXY_ENABLED}

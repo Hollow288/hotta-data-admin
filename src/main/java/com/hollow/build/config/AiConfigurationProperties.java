@@ -32,4 +32,9 @@ public class AiConfigurationProperties {
 
     private String proxyAddress;
 
+    private Integer proxyPort;
+
+    private boolean proxyEnabled;
+
+
 }

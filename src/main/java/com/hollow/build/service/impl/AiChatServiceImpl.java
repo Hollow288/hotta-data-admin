@@ -31,13 +31,23 @@ public class AiChatServiceImpl implements AiChatService {
     private final RedisUtil redisUtil;
 
     public AiChatServiceImpl(AiConfigurationProperties aiConfigurationProperties, RedisUtil redisUtil) {
-        final var proxySelector = ProxySelector.of(new InetSocketAddress(aiConfigurationProperties.getProxyAddress(), 7890));
-        this.httpClient = HttpClient.newBuilder()
-                .proxy(proxySelector)
+        HttpClient.Builder builder = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(40))
                 .followRedirects(HttpClient.Redirect.NORMAL)
-                .version(HttpClient.Version.HTTP_2)
-                .build();
+                .version(HttpClient.Version.HTTP_2);
+
+        if (aiConfigurationProperties.isProxyEnabled()) {
+            ProxySelector proxySelector = ProxySelector.of(
+                    new InetSocketAddress(
+                            aiConfigurationProperties.getProxyAddress(),
+                            aiConfigurationProperties.getProxyPort()
+                    )
+            );
+            builder.proxy(proxySelector);
+        }
+
+        this.httpClient = builder.build();
+
         this.redisUtil = redisUtil;
         this.aiConfigurationProperties = aiConfigurationProperties;
     }
