@@ -336,7 +336,8 @@ public class AiChatServiceImpl implements AiChatService {
 
         // 根对象
         Map<String, Object> root = new HashMap<>();
-        root.put("contents", List.of(adminContent,userContent));
+//        root.put("contents", List.of(adminContent,userContent));
+        root.put("contents", List.of(userContent));
         root.put("generationConfig", generationConfig);
 
         // 转 JSON 字符串
