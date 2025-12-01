@@ -58,7 +58,7 @@
         SELECT * FROM blog_posts b
         WHERE del_flag = '0'
         <if test="searchName != null and searchName != ''">
-            and w.title like concat('%',#{searchName},'%')
+            and b.title like concat('%',#{searchName},'%')
         </if>
         LIMIT #{limit} OFFSET #{offset}
     </select>
