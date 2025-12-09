@@ -103,8 +103,8 @@ public class BlogController {
     @PutMapping("/{blog_id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(
-            summary = "添加博客",
-            description = "添加博客"
+            summary = "修改博客",
+            description = "修改博客"
     )
     public ApiResponse<Void> editBlog(@PathVariable("blog_id") Integer blogId, @RequestBody BlogPost blogPost){
         BlogService.updateBlog(blogId,blogPost);
