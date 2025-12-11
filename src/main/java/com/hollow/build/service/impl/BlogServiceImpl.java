@@ -11,8 +11,11 @@ import org.springframework.stereotype.Service;
 
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 
 @Service
@@ -45,6 +48,11 @@ public class BlogServiceImpl implements BlogService {
 
         // 4. 传入两个参数调用 Mapper
         return blogMapper.getBlogDateListByDate(startDate, endDate);
+    }
+
+    @Override
+    public List<BlogDateListDto> selectBlogDateListByTag(String tag) {
+        return blogMapper.getBlogDateListByTag(tag);
     }
 
     @Override
@@ -85,5 +93,22 @@ public class BlogServiceImpl implements BlogService {
         if (blogList != null && !blogList.isEmpty()) {
             blogMapper.deleteBlog(blogList);
         }
+    }
+
+    @Override
+    public List<String> selectBlogTags() {
+        List<String> rawTagsList = blogMapper.selectBlogTags();
+        if (rawTagsList == null || rawTagsList.isEmpty()) {
+            return Collections.emptyList();
+        }
+        // 2. 核心处理逻辑
+        return rawTagsList.stream()
+                .filter(str -> str != null && !str.isEmpty())
+                .flatMap(str -> Arrays.stream(str.split(",")))
+                .map(String::trim)
+                .filter(tag -> !tag.isEmpty())
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
     }
 }

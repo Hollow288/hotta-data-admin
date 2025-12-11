@@ -38,6 +38,17 @@ public class BlogController {
         return ApiResponse.success(BlogService.selectBlogDateMenu());
     }
 
+    @GetMapping("/blog-date-tags")
+    @Operation(
+            summary = "查询博客标签",
+            description = "查询博客标签"
+    )
+    @BypassRateLimit
+    @PublicEndpoint
+    public ApiResponse<List<String>> selectBlogTags(){
+        return ApiResponse.success(BlogService.selectBlogTags());
+    }
+
 
     @GetMapping("/blog-date-list/{date}")
     @Operation(
@@ -48,6 +59,17 @@ public class BlogController {
     @PublicEndpoint
     public ApiResponse<List<BlogDateListDto>> selectBlogDateListByDate(@PathVariable("date") String date){
         return ApiResponse.success(BlogService.selectBlogDateListByDate(date));
+    }
+
+    @GetMapping("/blog-tag/{tag}")
+    @Operation(
+            summary = "根据标签查询博客列表",
+            description = "根据标签查询博客列表"
+    )
+    @BypassRateLimit
+    @PublicEndpoint
+    public ApiResponse<List<BlogDateListDto>> selectBlogDateListByTag(@PathVariable("tag") String tag){
+        return ApiResponse.success(BlogService.selectBlogDateListByTag(tag));
     }
 
 

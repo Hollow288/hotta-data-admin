@@ -42,6 +42,18 @@
         <!-- 逻辑：时间 >= 本月1号 0点  AND 时间 < 下个月1号 0点 -->
     </select>
 
+    <select id="getBlogDateListByTag" resultType="com.hollow.build.dto.BlogDateListDto">
+        SELECT
+        blog_id,
+        title,
+        summary,
+        tags,
+        created_at
+        FROM blog_posts
+        WHERE del_flag = '0'
+        AND FIND_IN_SET(#{tag}, tags);
+    </select>
+
 
     <select id="selectBlogById" resultType="com.hollow.build.entity.mysql.BlogPost">
         select *  from blog_posts where del_flag = '0' and  blog_id = #{articleId}
@@ -126,6 +138,15 @@
             #{id}
         </foreach>
     </update>
+
+
+    <select id="selectBlogTags" resultType="java.lang.String">
+        SELECT tags
+        FROM blog_posts
+        WHERE del_flag = '0'
+          AND tags IS NOT NULL
+          AND tags != '';
+    </select>
 
 
 </mapper>

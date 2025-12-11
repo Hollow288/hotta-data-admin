@@ -13,6 +13,8 @@ public interface BlogService {
 
     List<BlogDateListDto> selectBlogDateListByDate(String date);
 
+    List<BlogDateListDto> selectBlogDateListByTag(String tag);
+
     BlogPost selectBlogById(String articleId);
 
     List<BlogDateListDto> selectBlogByKeyWord(String keyWord);
@@ -24,4 +26,6 @@ public interface BlogService {
     void updateBlog(Integer blogId, BlogPost blogPost);
 
     void deleteBlog(Map<String, Object> blogPost);
+
+    List<String> selectBlogTags();
 }

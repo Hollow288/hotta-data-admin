@@ -15,6 +15,7 @@ public interface BlogMapper {
 
     List<BlogDateListDto> getBlogDateListByDate(@Param("startDate") String startDate,
                                                 @Param("endDate") String endDate);
+    List<BlogDateListDto> getBlogDateListByTag(String tag);
 
     BlogPost selectBlogById(String articleId);
 
@@ -29,4 +30,6 @@ public interface BlogMapper {
     void updateBlog(@Param("blogId") Integer blogId, @Param("blogPost") BlogPost blogPost);
 
     void deleteBlog(List<String> blogList);
+
+    List<String> selectBlogTags();
 }
