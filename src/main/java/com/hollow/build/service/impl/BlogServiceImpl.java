@@ -9,6 +9,8 @@ import com.hollow.build.service.BlogService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +28,23 @@ public class BlogServiceImpl implements BlogService {
 
     @Override
     public List<BlogDateListDto> selectBlogDateListByDate(String date) {
-        return blogMapper.getBlogDateListByDate(date);
+        // 1. 假设前端传来的 date 格式是 "2023-11"
+        YearMonth inputMonth = YearMonth.parse(date);
+
+        // 2. 计算【月初时间】：2023-11-01 00:00:00
+        String startDate = inputMonth.atDay(1)
+                .atStartOfDay()
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        // 3. 计算【下月月初】：2023-12-01 00:00:00
+        // (YearMonth 会自动处理跨年，比如输入 2023-12，这里会自动变成 2024-01)
+        String endDate = inputMonth.plusMonths(1)
+                .atDay(1)
+                .atStartOfDay()
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+
+        // 4. 传入两个参数调用 Mapper
+        return blogMapper.getBlogDateListByDate(startDate, endDate);
     }
 
     @Override

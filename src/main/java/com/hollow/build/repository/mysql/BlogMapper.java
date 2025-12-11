@@ -13,7 +13,8 @@ public interface BlogMapper {
 
     List<BlogDateMenuDto> getBlogDateMenu();
 
-    List<BlogDateListDto> getBlogDateListByDate(String date);
+    List<BlogDateListDto> getBlogDateListByDate(@Param("startDate") String startDate,
+                                                @Param("endDate") String endDate);
 
     BlogPost selectBlogById(String articleId);
 
