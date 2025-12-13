@@ -21,6 +21,10 @@ public class BlogDateListDto implements Serializable {
     @Schema(description ="文章摘要")
     private String summary;
 
+    /** 标签 */
+    @Schema(description ="标签")
+    private String tags;
+
     /** 创建时间 */
     @Schema(description ="创建时间")
     private LocalDateTime createdAt;

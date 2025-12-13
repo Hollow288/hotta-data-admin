@@ -1,6 +1,7 @@
 package com.hollow.build.controller.v1;
 
 import com.hollow.build.common.ApiResponse;
+import com.hollow.build.config.BypassRateLimit;
 import com.hollow.build.config.PublicEndpoint;
 import com.hollow.build.entity.mongo.Fashion;
 import com.hollow.build.service.FashionService;
@@ -23,6 +24,7 @@ public class FashionController {
     private final FashionService fashionService;
     
     @GetMapping
+    @BypassRateLimit
     @PublicEndpoint
     @Operation(summary = "查询所有时装", description = "获取所有时装的基本信息")
     public ApiResponse<List<Fashion>> getAllFashion() {
@@ -31,6 +33,7 @@ public class FashionController {
 
 
     @GetMapping("/{item_key}")
+    @BypassRateLimit
     @PublicEndpoint
     @Operation(summary = "根据key查询时装", description = "根据key获取时装的详细信息")
     public ApiResponse<Fashion> getFashionByKey(@PathVariable(value = "item_key") String itemKey) {

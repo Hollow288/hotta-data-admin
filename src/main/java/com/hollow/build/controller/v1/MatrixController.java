@@ -1,6 +1,7 @@
 package com.hollow.build.controller.v1;
 
 import com.hollow.build.common.ApiResponse;
+import com.hollow.build.config.BypassRateLimit;
 import com.hollow.build.config.PublicEndpoint;
 import com.hollow.build.entity.mongo.Matrix;
 import com.hollow.build.service.MatrixService;
@@ -23,6 +24,7 @@ public class MatrixController {
     private final MatrixService matrixService;
     
     @GetMapping
+    @BypassRateLimit
     @PublicEndpoint
     @Operation(summary = "查询所有意志", description = "获取所有意志的基本信息")
     public ApiResponse<List<Matrix>> getAllMatrix() {
@@ -31,6 +33,7 @@ public class MatrixController {
 
 
     @GetMapping("/{item_key}")
+    @BypassRateLimit
     @PublicEndpoint
     @Operation(summary = "根据key查询意志", description = "根据key获取意志的详细信息")
     public ApiResponse<Matrix> getMatrixByKey(@PathVariable(value = "item_key") String itemKey) {

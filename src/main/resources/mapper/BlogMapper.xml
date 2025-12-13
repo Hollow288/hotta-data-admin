@@ -11,16 +11,142 @@
         SELECT DATE_FORMAT(created_at, '%Y-%m') AS `year_month`, COUNT(*) AS count
         FROM blog_posts
         WHERE del_flag = '0'
-        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+        GROUP BY DATE_FORMAT(created_at, '%Y-%m') ORDER BY DATE_FORMAT(created_at, '%Y-%m') DESC
     </select>
+
+    <!--
+
+    ALTER TABLE blog_posts
+    ADD INDEX idx_del_date (del_flag, created_at);
+
+    普通联合索引:
+    先查del_flag再查created_at有用；只查del_flag也有用；但是只查created_at就没用
+
+    -->
 
 
     <select id="getBlogDateListByDate" resultType="com.hollow.build.dto.BlogDateListDto">
-        select blog_id,title,summary,created_at  from blog_posts where del_flag = '0'  AND DATE_FORMAT(created_at, '%Y-%m') = #{date}
+        SELECT
+        blog_id,
+        title,
+        summary,
+        tags,
+        created_at
+        FROM blog_posts
+        WHERE del_flag = '0'
+        <!-- 核心修改：使用范围查询代替函数计算 -->
+        AND created_at &gt;= #{startDate}
+        AND created_at &lt;  #{endDate}
+
+        <!-- 说明：&gt;= 是 >= 的转义，&lt; 是 < 的转义 -->
+        <!-- 逻辑：时间 >= 本月1号 0点  AND 时间 < 下个月1号 0点 -->
+    </select>
+
+    <select id="getBlogDateListByTag" resultType="com.hollow.build.dto.BlogDateListDto">
+        SELECT
+        blog_id,
+        title,
+        summary,
+        tags,
+        created_at
+        FROM blog_posts
+        WHERE del_flag = '0'
+        AND FIND_IN_SET(#{tag}, tags);
     </select>
 
 
     <select id="selectBlogById" resultType="com.hollow.build.entity.mysql.BlogPost">
         select *  from blog_posts where del_flag = '0' and  blog_id = #{articleId}
     </select>
+
+
+
+    <!--
+
+    ALTER TABLE blog_posts
+    ADD FULLTEXT INDEX ft_idx_title_content (title, content)
+    WITH PARSER ngram;
+
+    全文联合索引：
+    普通索引不支持%xx%,只支持xx%    全文索引都不支持
+    想查%xx%更快速,需要全文索引+特定的MATCH … AGAINST 查询  若字段是中文 需要使用 ngram 分词
+
+    -->
+
+    <select id="selectBlogByKeyWord" resultType="com.hollow.build.dto.BlogDateListDto">
+        SELECT
+            blog_Id,
+            title,
+            CASE
+                WHEN content LIKE CONCAT('%', #{keyWord}, '%') THEN
+                    SUBSTRING(content,
+                              GREATEST(LOCATE(#{keyWord}, content) - 40, 1),
+                              80 + LENGTH(#{keyWord})
+                    )
+                ELSE summary
+                END AS summary,
+            created_at
+        FROM blog_posts
+        WHERE del_flag = '0'
+           AND MATCH(title, content) AGAINST(#{keyWord} IN BOOLEAN MODE);
+    </select>
+
+
+    <select id="getCountBlog" resultType="java.lang.Integer">
+        SELECT count(*) FROM blog_posts b WHERE b.del_flag = '0'
+        <if test="searchName != null and searchName != ''">
+            and b.title like concat('%',#{searchName},'%')
+        </if>
+    </select>
+
+
+
+    <select id="getBlogInfoByPage" resultType="com.hollow.build.dto.BlogDateListDto">
+        SELECT * FROM blog_posts b
+        WHERE del_flag = '0'
+        <if test="searchName != null and searchName != ''">
+            and b.title like concat('%',#{searchName},'%')
+        </if>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+
+    <insert id="addBlogPost" parameterType="com.hollow.build.entity.mysql.BlogPost" useGeneratedKeys="true" keyProperty="blogId">
+        INSERT INTO blog_posts
+        (title, summary, content, tags, created_at)
+        VALUES
+            (#{title}, #{summary}, #{content}, #{tags}, NOW())
+    </insert>
+
+
+    <update id="updateBlog">
+        UPDATE blog_posts
+        SET
+            title = #{blogPost.title},
+            summary = #{blogPost.summary},
+            content = #{blogPost.content},
+            tags = #{blogPost.tags}
+        WHERE blog_id = #{blogId}
+    </update>
+
+
+    <update id="deleteBlog">
+        UPDATE blog_posts
+        SET del_flag = '1'
+        WHERE blog_id IN
+        <foreach item="id" collection="blogList" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </update>
+
+
+    <select id="selectBlogTags" resultType="java.lang.String">
+        SELECT tags
+        FROM blog_posts
+        WHERE del_flag = '0'
+          AND tags IS NOT NULL
+          AND tags != '';
+    </select>
+
+
 </mapper>

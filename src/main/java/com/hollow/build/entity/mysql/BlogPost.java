@@ -28,6 +28,10 @@ public class BlogPost implements Serializable {
     @Schema(description ="文章正文（Markdown 字符串）")
     private String content;
 
+    /** 标签 */
+    @Schema(description ="标签")
+    private String tags;
+
     /** 创建时间 */
     @Schema(description ="创建时间")
     private LocalDateTime createdAt;

@@ -41,6 +41,9 @@ public class Artifact implements Serializable {
     @Schema(description = "源器图标路径")
     private String artifactIcon;
 
+    @Schema(description = "源器缩略图路径")
+    private String artifactThumbnail;
+
     @Schema(description = "源器星级描述")
     private List<String> artifactDetail;
 }
