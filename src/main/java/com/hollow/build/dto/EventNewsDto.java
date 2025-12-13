@@ -38,13 +38,11 @@ public class EventNewsDto implements Serializable {
     * 活动开始时间
     */
     @Schema(description ="活动开始时间")
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Shanghai")
     private LocalDateTime newsStart;
     /**
     * 活动结束时间
     */
     @Schema(description ="活动结束时间")
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Shanghai")
     private LocalDateTime newsEnd;
 
     /**

@@ -38,13 +38,11 @@ public class EventNews implements Serializable {
     * 活动开始时间
     */
     @Schema(description ="活动开始时间")
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Shanghai")
     private LocalDateTime newsStart;
     /**
     * 活动结束时间
     */
     @Schema(description ="活动结束时间")
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Shanghai")
     private LocalDateTime newsEnd;
     /**
     * 是否删除（0未删除 1已删除）
