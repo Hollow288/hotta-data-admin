@@ -5,7 +5,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.io.Serializable;
-import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 
 /**
 * 活动资讯
@@ -38,12 +38,12 @@ public class EventNewsDto implements Serializable {
     * 活动开始时间
     */
     @Schema(description ="活动开始时间")
-    private LocalDateTime newsStart;
+    private ZonedDateTime newsStart;
     /**
     * 活动结束时间
     */
     @Schema(description ="活动结束时间")
-    private LocalDateTime newsEnd;
+    private ZonedDateTime newsEnd;
 
     /**
      * 图片显示路径

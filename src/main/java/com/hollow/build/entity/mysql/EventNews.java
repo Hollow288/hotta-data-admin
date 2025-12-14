@@ -1,9 +1,7 @@
 package com.hollow.build.entity.mysql;
 
 import java.io.Serializable;
-import java.time.LocalDateTime;
-
-import com.fasterxml.jackson.annotation.JsonFormat;
+import java.time.ZonedDateTime;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -38,12 +36,12 @@ public class EventNews implements Serializable {
     * 活动开始时间
     */
     @Schema(description ="活动开始时间")
-    private LocalDateTime newsStart;
+    private ZonedDateTime newsStart;
     /**
     * 活动结束时间
     */
     @Schema(description ="活动结束时间")
-    private LocalDateTime newsEnd;
+    private ZonedDateTime newsEnd;
     /**
     * 是否删除（0未删除 1已删除）
     */
