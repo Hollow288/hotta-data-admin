@@ -2,6 +2,7 @@ package com.hollow.build.entity.mongo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.io.Serial;
 import java.io.Serializable;
@@ -9,6 +10,7 @@ import java.util.List;
 
 @Data
 @NoArgsConstructor
+@Document(collection = "matrix")
 @Schema(description = "意志套装信息")
 public class Matrix implements Serializable {
 
