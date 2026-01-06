@@ -17,6 +17,9 @@ public class MatrixListDto implements Serializable {
     @Schema(description = "意志名称，例如 生命赋格")
     private String matrixName;
 
+    @Schema(description = "意志品质，例如 SSR")
+    private String matrixQuality;
+
     @Schema(description = "意志图标路径")
     private String matrixIcon;
 

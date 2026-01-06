@@ -60,6 +60,7 @@ public class MatrixServiceImpl implements MatrixService {
         query.fields()
                 .include("matrixKey")
                 .include("matrixName")
+                .include("matrixQuality")
                 .include("matrixIcon");
 
         List<MatrixListDto> matrixSearchList = mongoTemplate.find(query, MatrixListDto.class, "matrix");
