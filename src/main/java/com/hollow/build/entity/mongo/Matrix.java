@@ -33,6 +33,9 @@ public class Matrix implements Serializable {
     @Schema(description = "意志图标路径")
     private String matrixIcon;
 
+    @Schema(description = "意志缩略图路径")
+    private String matrixThumbnail;
+
     @Schema(description = "意志套装效果详情（2件/3件/4件等）")
     private List<MatrixDetail> matrixDetail;
 

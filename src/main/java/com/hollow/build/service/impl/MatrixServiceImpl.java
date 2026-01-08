@@ -61,12 +61,12 @@ public class MatrixServiceImpl implements MatrixService {
                 .include("matrixKey")
                 .include("matrixName")
                 .include("matrixQuality")
-                .include("matrixIcon");
+                .include("matrixThumbnail");
 
         List<MatrixListDto> matrixSearchList = mongoTemplate.find(query, MatrixListDto.class, "matrix");
 
         matrixSearchList.forEach(matrixListDto -> {
-            matrixListDto.setMatrixIcon(minioUtil.fileUrlEncoderChance(matrixListDto.getMatrixIcon(),"hotta"));
+            matrixListDto.setMatrixThumbnail(minioUtil.fileUrlEncoderChance(matrixListDto.getMatrixThumbnail(),"hotta"));
         });
         return matrixSearchList;
     }

@@ -3,6 +3,7 @@ package com.hollow.build.controller.v1;
 import com.hollow.build.common.ApiResponse;
 import com.hollow.build.config.BypassRateLimit;
 import com.hollow.build.config.PublicEndpoint;
+import com.hollow.build.dto.WeaponsListDto;
 import com.hollow.build.entity.mongo.Weapons;
 import com.hollow.build.service.WeaponsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -39,5 +40,14 @@ public class WeaponsController {
     public ApiResponse<Weapons> getWeaponByKey(@PathVariable(value = "item_key") String itemKey) {
         Weapons weapons = weaponsService.getWeaponByKey(itemKey);
         return ApiResponse.success(weapons);
+    }
+
+    @GetMapping("/search")
+    @BypassRateLimit
+    @PublicEndpoint
+    @Operation(summary = "根据条件查询武器", description = "根据条件查询武器")
+    public ApiResponse<List<WeaponsListDto>> getWeaponsByParams(@RequestParam(required = false) String weaponCategory, @RequestParam(required = false) String weaponElement, @RequestParam(required = false) String weaponRarity) {
+        List<WeaponsListDto> weaponsListDtoList = weaponsService.getWeaponsByParams(weaponCategory,weaponElement,weaponRarity);
+        return ApiResponse.success(weaponsListDtoList);
     }
 }

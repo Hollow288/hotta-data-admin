@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.math.BigDecimal;
 import java.util.List;
 
 @Data
@@ -103,5 +104,11 @@ public class Weapons implements Serializable {
 
         @Schema(description = "技能图标路径")
         private String icon;
+
+        @Schema(description = "技能动态描述")
+        private String dynamicDes;
+
+        @Schema(description = "技能动态数值")
+        private List<BigDecimal[]> dynamicValue;
     }
 }
