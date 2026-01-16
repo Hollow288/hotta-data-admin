@@ -102,6 +102,9 @@ public class Weapons implements Serializable {
         @Schema(description = "技能描述")
         private String description;
 
+        @Schema(description = "技能类别")
+        private String[] tags;
+
         @Schema(description = "技能图标路径")
         private String icon;
 
