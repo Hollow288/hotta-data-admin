@@ -37,12 +37,34 @@ public class WeaponsServiceImpl implements WeaponsService {
     public List<Weapons> getAllWeapons() {
         return weaponsRepository.findAll().stream()
                 .peek(weapons -> {
-                    weapons.setWeaponIcon(minioUtil.fileUrlEncoderChance(weapons.getWeaponIcon(),"hotta"));
-                    weapons.getWeaponSkill().forEach(skill ->
-                            skill.setIcon(minioUtil.fileUrlEncoderChance(skill.getIcon(),"hotta"))
+
+                    // 武器图标
+                    weapons.setWeaponIcon(
+                            minioUtil.fileUrlEncoderChance(weapons.getWeaponIcon(), "hotta")
                     );
-                }).toList();
+
+                    // 技能图标
+                    if (weapons.getWeaponSkill() != null) {
+                        weapons.getWeaponSkill().forEach(skill ->
+                                skill.setIcon(
+                                        minioUtil.fileUrlEncoderChance(skill.getIcon(), "hotta")
+                                )
+                        );
+                    }
+
+                    // 基础属性图标 attributeIcon
+                    if (weapons.getWeaponModifyData() != null) {
+                        weapons.getWeaponModifyData().forEach(modifyData ->
+                                modifyData.setAttributeIcon(
+                                        minioUtil.fileUrlEncoderChance(modifyData.getAttributeIcon(), "hotta")
+                                )
+                        );
+                    }
+
+                })
+                .toList();
     }
+
 
     @Override
     @Cacheable(value = "weapons", key = "#itemKey")
@@ -60,6 +82,15 @@ public class WeaponsServiceImpl implements WeaponsService {
         if (weapons.getWeaponSkill() != null) {
             weapons.getWeaponSkill().forEach(skill ->
                     skill.setIcon(minioUtil.fileUrlEncoderChance(skill.getIcon(),"hotta"))
+            );
+        }
+
+        // 基础属性图标 attributeIcon
+        if (weapons.getWeaponModifyData() != null) {
+            weapons.getWeaponModifyData().forEach(modifyData ->
+                    modifyData.setAttributeIcon(
+                            minioUtil.fileUrlEncoderChance(modifyData.getAttributeIcon(), "hotta")
+                    )
             );
         }
 

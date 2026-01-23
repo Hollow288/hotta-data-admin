@@ -11,6 +11,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @NoArgsConstructor
@@ -54,6 +55,15 @@ public class Weapons implements Serializable {
 
     @Schema(description = "改造详情")
     private String remouldDetail;
+
+    @Schema(description = "武器基础数值")
+    private List<WeaponModifyData> weaponModifyData;
+
+    @Schema(description = "武器升星属性数值倍率")
+    private List<Map<String,BigDecimal>> weaponAttributeCoefficientList;
+
+    @Schema(description = "武器升级属性数值加成")
+    private List<List<BigDecimal>> weaponUpgradeAttribute;
 
     @Schema(description = "武器感性等级数据")
     private List<String> weaponSensualityLevelData;
@@ -114,4 +124,29 @@ public class Weapons implements Serializable {
         @Schema(description = "技能动态数值")
         private List<BigDecimal[]> dynamicValue;
     }
+
+
+    @Data
+    @NoArgsConstructor
+    @Schema(description = "武器基础数值信息")
+    public static class WeaponModifyData implements Serializable  {
+        @Serial
+        private static final long serialVersionUID = 1L;
+
+        @Schema(description = "属性KEY", example = "CommonAtkAdded")
+        private String propName;
+
+        @Schema(description = "属性名称", example = "攻击")
+        private String propChsName;
+
+        @Schema(description = "属性数值", example = "16.571905")
+        private BigDecimal propValue;
+
+        @Schema(description = "计算方式", example = "MODIFY_MODOP_ADDITIVE")
+        private String modifierOp;
+
+        @Schema(description = "属性图标", example = "Resources/UI/AttributeIcon/icon_atk.webp")
+        private String attributeIcon;
+    }
+
 }
