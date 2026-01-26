@@ -27,10 +27,27 @@ public class MatrixServiceImpl implements MatrixService {
     @Override
     @Cacheable(value = "matrix_all")
     public List<Matrix> getAllMatrix() {
-        return matrixRepository.findAll().stream()
-                .peek(matrix -> {
-                    matrix.setMatrixIcon(minioUtil.fileUrlEncoderChance(matrix.getMatrixIcon(),"hotta"));
-                }).toList();
+        List<Matrix> list = matrixRepository.findAll();
+
+        list.forEach(matrix -> {
+            matrix.setMatrixIcon(
+                    minioUtil.fileUrlEncoderChance(matrix.getMatrixIcon(), "hotta")
+            );
+
+            matrix.getMatrixSuitList().forEach(suit -> {
+                suit.setTypeIcon(
+                        minioUtil.fileUrlEncoderChance(suit.getTypeIcon(), "hotta")
+                );
+
+                suit.getMatrixModifyData().forEach(modify -> {
+                    modify.setAttributeIcon(
+                            minioUtil.fileUrlEncoderChance(modify.getAttributeIcon(), "hotta")
+                    );
+                });
+            });
+        });
+
+        return list;
     }
 
     @Override
@@ -45,6 +62,17 @@ public class MatrixServiceImpl implements MatrixService {
         // 拼接主图标
         matrix.setMatrixIcon(minioUtil.fileUrlEncoderChance(matrix.getMatrixIcon(),"hotta"));
 
+        matrix.getMatrixSuitList().forEach(suit -> {
+            suit.setTypeIcon(
+                    minioUtil.fileUrlEncoderChance(suit.getTypeIcon(), "hotta")
+            );
+
+            suit.getMatrixModifyData().forEach(modify -> {
+                modify.setAttributeIcon(
+                        minioUtil.fileUrlEncoderChance(modify.getAttributeIcon(), "hotta")
+                );
+            });
+        });
         return matrix;
     }
 
