@@ -18,10 +18,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -373,6 +370,134 @@ public class MinioUtil {
         String finalPrefix = (prefix == null || prefix.isBlank()) ? "" : prefix + "/";
 
         return minioConfigurationProperties.getEndpoint() + "/" + finalPrefix + baseUrl + encodedFileName;
+    }
+
+
+    /**
+     * 上传分片文件 (不自动生成文件名，完全遵照传入的 path)
+     *
+     * @param bucketName 桶名
+     * @param objectName 完整路径 (例如: temp/MD5值/1)
+     * @param inputStream 文件流
+     * @param contentType 类型
+     * @return 成功返回 true
+     */
+    @SneakyThrows(Exception.class)
+    public boolean uploadChunk(String bucketName, String objectName, InputStream inputStream, String contentType) {
+        if (!bucketExists(bucketName)) {
+            createBucket(bucketName);
+        }
+        minioClient.putObject(
+                PutObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(objectName)
+                        .stream(inputStream, inputStream.available(), -1) // -1 代表不预知流大小，但在分片上传中最好前端传大小，这里简化处理
+                        .contentType(contentType)
+                        .build()
+        );
+        return true;
+    }
+
+
+    /**
+     * 合并分片文件
+     *
+     * @param bucketName 桶名
+     * @param chunkNames 分片文件名称列表 (有序，例如: [temp/md5/1, temp/md5/2...])
+     * @param targetName 合并后的目标文件名 (例如: video/2023/movie.mp4)
+     * @param contentType 文件类型，例如 "video/mp4"
+     * @return boolean
+     */
+    @SneakyThrows(Exception.class)
+    public boolean composeFile(String bucketName, String targetName, List<String> chunkNames, String contentType) {
+        if (chunkNames == null || chunkNames.isEmpty()) {
+            return false;
+        }
+
+        List<ComposeSource> sources = chunkNames.stream()
+                .map(chunkName -> ComposeSource.builder()
+                        .bucket(bucketName)
+                        .object(chunkName)
+                        .build())
+                .collect(Collectors.toList());
+
+        // --- 核心修改：设置 Content-Type ---
+        Map<String, String> headers = new HashMap<>();
+        // 如果没传类型，给个默认值，但最好是传 video/mp4
+        if (contentType == null || contentType.isBlank()) {
+            contentType = "application/octet-stream";
+        }
+        headers.put("Content-Type", contentType);
+        // -------------------------------
+
+        minioClient.composeObject(
+                ComposeObjectArgs.builder()
+                        .bucket(bucketName)
+                        .object(targetName)
+                        .sources(sources)
+                        .headers(headers) // <--- 注入 Header
+                        .build()
+        );
+
+        return true;
+    }
+
+
+    /**
+     * 获取文件预览/下载链接 (GET请求)
+     *
+     * @param bucketName 桶名
+     * @param objectName 文件路径
+     * @param expires    过期时间(秒)
+     * @return 预览URL
+     */
+    @SneakyThrows(Exception.class)
+    public String getPreviewFileUrl(String bucketName, String objectName, Integer expires) {
+        return minioClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                        .method(Method.GET) // <--- 关键点：必须是 GET
+                        .bucket(bucketName)
+                        .object(objectName)
+                        .expiry(expires) // 直接写死一天，或者作为参数传入
+                        .build()
+        );
+    }
+
+
+    /**
+     * 获取已上传的分片列表
+     * @param bucketName 桶名
+     * @param identifier 文件的MD5 (作为文件夹名)
+     * @return 已存在的索引列表 [1, 2, 3...]
+     */
+    @SneakyThrows(Exception.class)
+    public List<Integer> getChunkIndices(String bucketName, String identifier) {
+        List<Integer> chunkIndices = new ArrayList<>();
+
+        // 构造前缀，例如: temp/a8d8c.../
+        String prefix = "temp/" + identifier + "/";
+
+        Iterable<Result<Item>> results = minioClient.listObjects(
+                ListObjectsArgs.builder()
+                        .bucket(bucketName)
+                        .prefix(prefix) // 只查这个文件夹下的
+                        .recursive(true)
+                        .build()
+        );
+
+        for (Result<Item> result : results) {
+            Item item = result.get();
+            String objectName = item.objectName();
+            // objectName 可能是 "temp/abc/1"
+            // 我们需要提取最后的数字 "1"
+            try {
+                String fileName = objectName.substring(objectName.lastIndexOf("/") + 1);
+                chunkIndices.add(Integer.parseInt(fileName));
+            } catch (NumberFormatException e) {
+                // 忽略非数字文件
+            }
+        }
+        return chunkIndices;
     }
 
 }
