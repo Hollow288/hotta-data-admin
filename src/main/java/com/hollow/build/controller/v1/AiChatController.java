@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -31,6 +32,12 @@ public class AiChatController {
        return aiChatService.chat(chatForm);
     }
 
+    @PostMapping("/chat/stream")
+    @PublicEndpoint
+    @Operation(summary = "流式聊天", description = "根据会话ID流式聊天")
+    public SseEmitter chatStream(@RequestBody ChatForm chatForm) {
+        return aiChatService.chatStream(chatForm);
+    }
 
     @PostMapping("/image")
     @PublicEndpoint

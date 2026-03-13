@@ -12,7 +12,10 @@ import com.alibaba.fastjson2.TypeReference;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.ProxySelector;
 import java.net.URI;
@@ -271,6 +274,86 @@ public class AiChatServiceImpl implements AiChatService {
                     )
             );
         }
+    }
+
+    @Override
+    public SseEmitter chatStream(ChatForm chatForm) {
+        SseEmitter emitter = new SseEmitter(60000L);
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                String memoryId = chatForm.getMemoryId();
+                if (memoryId == null || memoryId.isBlank()) {
+                    memoryId = UUID.randomUUID().toString();
+                }
+
+                List<Map<String, String>> messages;
+                String redisKey = "chat:" + memoryId;
+                Object historyJson = redisUtil.get(redisKey);
+                if (historyJson != null && !historyJson.toString().isEmpty()) {
+                    messages = JSON.parseObject(historyJson.toString(), new TypeReference<List<Map<String, String>>>(){});
+                } else {
+                    messages = new ArrayList<>();
+                    messages.add(Map.of("role", "system", "content", aiConfigurationProperties.getTextDefaultPrompt()));
+                }
+
+                messages.add(Map.of("role", "user", "content", chatForm.getMessage()));
+
+                Map<String, Object> requestBody = Map.of(
+                        "model", aiConfigurationProperties.getTextModel(),
+                        "messages", messages,
+                        "temperature", 1,
+                        "stream", true
+                );
+
+                String thisUseKey = getMaybeAPIAvailable("chat");
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(aiConfigurationProperties.getTextUri()))
+                        .header("Authorization", "Bearer " + thisUseKey)
+                        .header("Content-Type", "application/json")
+                        .timeout(Duration.ofSeconds(60))
+                        .POST(HttpRequest.BodyPublishers.ofString(JSON.toJSONString(requestBody)))
+                        .build();
+
+                StringBuilder fullReply = new StringBuilder();
+                String finalMemoryId = memoryId;
+
+                emitter.send(SseEmitter.event().data(Map.of("memoryId", finalMemoryId)));
+
+                HttpResponse<java.io.InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
+                BufferedReader reader = new BufferedReader(new InputStreamReader(response.body()));
+
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.startsWith("data: ")) {
+                        String data = line.substring(6);
+                        if ("[DONE]".equals(data)) break;
+
+                        Map<String, Object> chunk = JSON.parseObject(data, new TypeReference<Map<String, Object>>(){});
+                        List<Map<String, Object>> choices = (List<Map<String, Object>>) chunk.get("choices");
+                        if (choices != null && !choices.isEmpty()) {
+                            Map<String, Object> delta = (Map<String, Object>) choices.get(0).get("delta");
+                            if (delta != null && delta.containsKey("content")) {
+                                String content = (String) delta.get("content");
+                                fullReply.append(content);
+                                emitter.send(SseEmitter.event().data(Map.of("content", content)));
+                            }
+                        }
+                    }
+                }
+
+                messages.add(Map.of("role", "assistant", "content", fullReply.toString()));
+                redisUtil.set(redisKey, JSON.toJSONString(messages), 3600);
+
+                emitter.complete();
+
+            } catch (Exception e) {
+                emitter.completeWithError(e);
+            }
+        });
+
+        return emitter;
     }
 
 
