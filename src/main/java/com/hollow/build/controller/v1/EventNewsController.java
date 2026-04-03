@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 
+/**
+ * 活动资讯控制器，提供活动的增删改查及分页查询功能
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/event-news")
@@ -24,6 +27,14 @@ public class EventNewsController {
 
     private final EventNewsService eventNewsService;
 
+    /**
+     * 分页查询活动列表（需管理员权限）
+     *
+     * @param page 页码，从 1 开始
+     * @param pageSize 每页数量
+     * @param searchName 搜索名称（可选）
+     * @return 分页活动列表
+     */
     @GetMapping()
 //    @PublicEndpoint
     @PreAuthorize("hasRole('ADMIN')")
@@ -43,6 +54,12 @@ public class EventNewsController {
         return ApiResponse.success(eventNewsService.eventNewsByPage(page,pageSize,searchName));
     }
 
+    /**
+     * 根据ID查询活动详情（需管理员权限）
+     *
+     * @param newsId 活动ID
+     * @return 活动详细信息
+     */
     @GetMapping("/{news_id}")
 //    @PublicEndpoint
     @PreAuthorize("hasRole('ADMIN')")
@@ -54,6 +71,12 @@ public class EventNewsController {
         return ApiResponse.success(eventNewsService.eventNewsById(newsId));
     }
 
+    /**
+     * 添加新活动（需管理员权限）
+     *
+     * @param eventNewsDto 活动信息
+     * @return 操作结果
+     */
     @PostMapping()
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(
@@ -65,6 +88,13 @@ public class EventNewsController {
         return ApiResponse.success();
     }
 
+    /**
+     * 修改指定ID的活动（需管理员权限）
+     *
+     * @param newsId 活动ID
+     * @param eventNewsDto 修改后的活动信息
+     * @return 操作结果
+     */
     @PutMapping("/{news_id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(
@@ -76,7 +106,12 @@ public class EventNewsController {
         return ApiResponse.success();
     }
 
-
+    /**
+     * 删除活动（需管理员权限）
+     *
+     * @param eventEventNews 包含待删除活动信息的参数
+     * @return 操作结果
+     */
     @PutMapping("/delete")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> deleteEventNews(@RequestBody Map<String,Object> eventEventNews){

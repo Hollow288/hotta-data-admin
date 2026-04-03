@@ -10,9 +10,18 @@ import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Redis 缓存管理器配置类，定义各缓存空间的过期策略
+ */
 @Configuration
 public class RedisCacheConfig {
 
+    /**
+     * 创建 Redis 缓存管理器，设置默认及各缓存空间的过期时间
+     *
+     * @param factory Redis 连接工厂
+     * @return Redis 缓存管理器实例
+     */
     @Bean
     public RedisCacheManager cacheManager(RedisConnectionFactory factory) {
         Map<String, RedisCacheConfiguration> cacheConfigurations = new HashMap<>();

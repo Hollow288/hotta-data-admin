@@ -18,12 +18,20 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 
+/**
+ * 博客服务实现类，提供博客的日期菜单查询、按日期/标签/关键词检索、分页查询、增删改等功能。
+ */
 @Service
 @RequiredArgsConstructor
 public class BlogServiceImpl implements BlogService {
 
     private final BlogMapper blogMapper;
 
+    /**
+     * 查询博客的日期归档菜单列表。
+     *
+     * @return 按日期分组的博客归档菜单
+     */
     @Override
     public List<BlogDateMenuDto> selectBlogDateMenu() {
         return blogMapper.getBlogDateMenu();

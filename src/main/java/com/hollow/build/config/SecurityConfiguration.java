@@ -26,6 +26,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.List;
 
 
+/**
+ * Spring Security 安全配置类，定义认证过滤链、CORS 策略及密码编码器
+ */
 @Configuration
 @RequiredArgsConstructor
 public class SecurityConfiguration {
@@ -35,6 +38,12 @@ public class SecurityConfiguration {
 	private final ApiEndpointSecurityInspector apiEndpointSecurityInspector;
 	private final CustomAuthenticationEntryPoint customEntryPoint;
 	
+	/**
+	 * 配置安全过滤链，包括 CORS、CSRF、会话管理、请求授权及过滤器顺序
+	 *
+	 * @param http HttpSecurity 配置对象
+	 * @return 构建完成的安全过滤链
+	 */
 	@Bean
 	@SneakyThrows
 	public SecurityFilterChain configure(final HttpSecurity http)  {
@@ -57,12 +66,24 @@ public class SecurityConfiguration {
 		return http.build();
 	}
 	
+	/**
+	 * 创建 BCrypt 密码编码器
+	 *
+	 * @return 密码编码器实例
+	 */
 	@Bean
 	public PasswordEncoder passwordEncoder() {
 		return new BCryptPasswordEncoder();
 	}
 
 
+	/**
+	 * 获取认证管理器实例
+	 *
+	 * @param authenticationConfiguration 认证配置对象
+	 * @return 认证管理器
+	 * @throws Exception 获取认证管理器时可能抛出的异常
+	 */
 	@Bean
 	public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
 		return authenticationConfiguration.getAuthenticationManager();

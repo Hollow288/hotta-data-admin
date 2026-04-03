@@ -17,6 +17,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * AI 聊天控制器，提供 AI 对话、流式对话、图片生成及会话清理等功能
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/ai")
@@ -25,6 +28,12 @@ public class AiChatController {
 
     private final AiChatService aiChatService;
 
+    /**
+     * AI 聊天接口，根据会话ID进行对话
+     *
+     * @param chatForm 聊天表单，包含会话ID及消息内容
+     * @return 异步返回聊天结果
+     */
     @PostMapping("/chat")
     @PublicEndpoint
     @Operation(summary = "聊天", description = "根据会话ID聊天")
@@ -32,6 +41,12 @@ public class AiChatController {
        return aiChatService.chat(chatForm);
     }
 
+    /**
+     * AI 流式聊天接口，通过 SSE 实时推送对话内容
+     *
+     * @param chatForm 聊天表单，包含会话ID及消息内容
+     * @return SSE 事件发射器，用于流式返回聊天内容
+     */
     @PostMapping("/chat/stream")
     @PublicEndpoint
     @Operation(summary = "流式聊天", description = "根据会话ID流式聊天")
@@ -39,6 +54,12 @@ public class AiChatController {
         return aiChatService.chatStream(chatForm);
     }
 
+    /**
+     * AI 图片生成接口，根据会话内容生成图片
+     *
+     * @param imageForm 图片表单，包含图片生成的相关参数
+     * @return 异步返回生成的图片信息
+     */
     @PostMapping("/image")
     @PublicEndpoint
     @Operation(summary = "图片", description = "根据会话生成图片")
@@ -48,6 +69,12 @@ public class AiChatController {
 
 
 
+    /**
+     * 清理指定会话ID下的临时会话记录
+     *
+     * @param chatForm 聊天表单，包含需要清理的会话ID
+     * @return 异步返回清理结果
+     */
     @PostMapping("/remove")
     @PublicEndpoint
     @Operation(summary = "清理该ID下的临时会话记录", description = "清理该ID下的临时会话记录")

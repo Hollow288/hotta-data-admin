@@ -27,6 +27,10 @@ import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandl
 import java.util.concurrent.TimeUnit;
 
 
+/**
+ * 请求限流过滤器，基于 API Key 对非安全接口进行速率限制。
+ * <p>使用令牌桶算法控制请求频率，超出限制时返回 429 错误响应。</p>
+ */
 @Component
 @RequiredArgsConstructor
 public class RateLimitFilter extends OncePerRequestFilter {
@@ -38,6 +42,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
 	private final ApiEndpointSecurityInspector apiEndpointSecurityInspector;
 	private final PathMatcherUtils pathMatcherUtils;
 
+	/**
+	 * 执行限流过滤逻辑。
+	 * <p>对公开接口（非 Swagger 路径）根据 API Key 进行限流检查，
+	 * 若无 API Key 则返回认证错误，超出速率限制则返回限流错误。</p>
+	 *
+	 * @param request     HTTP 请求对象
+	 * @param response    HTTP 响应对象
+	 * @param filterChain 过滤器链
+	 */
 	@Override
 	@SneakyThrows
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) {

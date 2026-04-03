@@ -4,6 +4,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+/**
+ * Google Drive 集成配置属性类，用于绑定 OAuth 认证、文件上传等相关配置项
+ */
 @Data
 @Component
 @ConfigurationProperties(prefix = "com.hollow.google-drive")

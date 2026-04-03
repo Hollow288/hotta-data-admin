@@ -14,11 +14,22 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 
+/**
+ * 全局异常处理器，统一捕获并处理控制器层抛出的异常。
+ * <p>将异常信息封装为统一的 {@link ApiResponse} 格式返回给客户端。</p>
+ */
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
+    /**
+     * 处理认证凭证未找到异常（401 未授权）。
+     *
+     * @param response HTTP 响应对象
+     * @param ex       认证凭证未找到异常
+     * @throws IOException 写入响应时可能抛出的 IO 异常
+     */
     @ExceptionHandler(AuthenticationCredentialsNotFoundException.class)
     public void handleAuthenticationException(HttpServletResponse response, AuthenticationCredentialsNotFoundException ex) throws IOException {
         logger.error("Authentication error: ", ex);
@@ -30,7 +41,13 @@ public class GlobalExceptionHandler {
         response.getWriter().write(JSON.toJSONString(result));
     }
 
-    // 处理403权限不足异常
+    /**
+     * 处理访问拒绝异常（403 权限不足）。
+     *
+     * @param response HTTP 响应对象
+     * @param ex       访问拒绝异常
+     * @throws IOException 写入响应时可能抛出的 IO 异常
+     */
     @ExceptionHandler(AccessDeniedException.class)
     public void handleAccessDeniedException(HttpServletResponse response, AccessDeniedException ex) throws IOException {
         logger.error("Access denied: ", ex);
@@ -42,6 +59,13 @@ public class GlobalExceptionHandler {
         response.getWriter().write(JSON.toJSONString(result));
     }
 
+    /**
+     * 处理所有未被其他处理器捕获的异常（500 系统异常）。
+     *
+     * @param response HTTP 响应对象
+     * @param ex       未处理的异常
+     * @throws IOException 写入响应时可能抛出的 IO 异常
+     */
     @ExceptionHandler(Exception.class)
     public void handleException(HttpServletResponse response,Exception ex) throws IOException {
         logger.error("Unhandled exception: ", ex);

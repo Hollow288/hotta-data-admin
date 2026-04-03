@@ -9,6 +9,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
 import org.springframework.util.unit.DataSize;
 
+/**
+ * MinIO 客户端配置类，负责创建 MinIO 客户端实例及文件上传大小限制配置
+ */
 @Data
 @Component
 @RequiredArgsConstructor

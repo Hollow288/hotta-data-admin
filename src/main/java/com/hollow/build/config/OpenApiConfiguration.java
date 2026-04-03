@@ -13,6 +13,9 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
+/**
+ * OpenAPI (Swagger) 文档配置类，配置 API 文档信息及安全认证方案
+ */
 @Configuration
 @RequiredArgsConstructor
 @EnableConfigurationProperties(OpenApiConfigurationProperties.class)
@@ -25,6 +28,11 @@ public class OpenApiConfiguration {
     private static final String API_KEY_HEADER_NAME = "X-API-KEY";
     public static final List<String> SWAGGER_V3_PATHS = List.of("/swagger-ui**/**", "/v3/api-docs**/**");
 
+    /**
+     * 创建 OpenAPI 文档配置，包含 Bearer 和 API Key 两种安全认证方案
+     *
+     * @return OpenAPI 文档配置实例
+     */
     @Bean
     public OpenAPI openApi() {
         final var info = new Info()

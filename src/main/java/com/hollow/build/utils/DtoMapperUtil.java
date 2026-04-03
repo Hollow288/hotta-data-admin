@@ -2,6 +2,12 @@ package com.hollow.build.utils;
 
 import org.springframework.beans.BeanUtils;
 
+/**
+ * DTO 映射工具类
+ * <p>
+ * 提供通用的实体与 DTO 之间的转换方法，基于 Spring BeanUtils 实现属性拷贝。
+ * </p>
+ */
 public class DtoMapperUtil {
 
     /**

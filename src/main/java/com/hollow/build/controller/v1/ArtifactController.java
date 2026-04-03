@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 源器控制器，提供源器的查询相关接口
+ */
 @RestController
 @RequestMapping("/api/v1/artifact")
 @RequiredArgsConstructor
@@ -20,7 +23,12 @@ import java.util.List;
 public class ArtifactController {
 
     private final ArtifactService artifactService;
-    
+
+    /**
+     * 查询所有源器信息
+     *
+     * @return 所有源器列表
+     */
     @GetMapping
     @BypassRateLimit
     @PublicEndpoint
@@ -29,7 +37,12 @@ public class ArtifactController {
         return ApiResponse.success(artifactService.getAllArtifact());
     }
 
-
+    /**
+     * 根据唯一标识查询源器详细信息
+     *
+     * @param itemKey 源器的唯一标识
+     * @return 源器详细信息
+     */
     @GetMapping("/{item_key}")
     @BypassRateLimit
     @PublicEndpoint
@@ -39,7 +52,12 @@ public class ArtifactController {
         return ApiResponse.success(artifact);
     }
 
-
+    /**
+     * 根据稀有度等条件查询源器列表
+     *
+     * @param artifactRarity 源器稀有度（可选）
+     * @return 符合条件的源器列表
+     */
     @GetMapping("/search")
     @BypassRateLimit
     @PublicEndpoint

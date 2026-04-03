@@ -26,6 +26,9 @@ import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * AI 聊天服务实现类，提供文本对话、图像生成、聊天记录管理及流式对话等功能。
+ */
 @Service
 public class AiChatServiceImpl implements AiChatService {
 
@@ -33,6 +36,13 @@ public class AiChatServiceImpl implements AiChatService {
     private final AiConfigurationProperties aiConfigurationProperties;
     private final RedisUtil redisUtil;
 
+    /**
+     * 构造方法，初始化 HttpClient、Redis 工具及 AI 配置属性。
+     * 若配置了代理，则 HttpClient 会使用指定代理进行请求。
+     *
+     * @param aiConfigurationProperties AI 相关配置属性
+     * @param redisUtil Redis 工具类
+     */
     public AiChatServiceImpl(AiConfigurationProperties aiConfigurationProperties, RedisUtil redisUtil) {
         HttpClient.Builder builder = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(40))
@@ -55,6 +65,13 @@ public class AiChatServiceImpl implements AiChatService {
         this.aiConfigurationProperties = aiConfigurationProperties;
     }
 
+    /**
+     * 异步发送文本聊天请求，支持多轮对话。
+     * 聊天历史通过 Redis 进行缓存，超时时间为 1 小时。
+     *
+     * @param chatForm 聊天表单，包含消息内容和会话标识
+     * @return 异步返回包含 AI 回复的聊天表单
+     */
     @Override
     @Async("taskExecutor")
     public CompletableFuture<ApiResponse<ChatForm>> chat(ChatForm chatForm) {
@@ -159,6 +176,12 @@ public class AiChatServiceImpl implements AiChatService {
         }
     }
 
+    /**
+     * 异步发送图像生成请求，调用 Gemini API 生成图片。
+     *
+     * @param imageForm 图像表单，包含提示文本及可选的参考图片数据
+     * @return 异步返回包含生成图片 Base64 数据和 MIME 类型的响应
+     */
     @Async("taskExecutor")
     @Override
     public CompletableFuture<ApiResponse<ImageForm>> image(ImageForm imageForm) {
@@ -241,6 +264,12 @@ public class AiChatServiceImpl implements AiChatService {
         }
     }
 
+    /**
+     * 清除指定会话的聊天记录，从 Redis 中删除对应的历史消息。
+     *
+     * @param chatForm 聊天表单，包含需要清除的会话标识 memoryId
+     * @return 异步返回清理结果
+     */
     @Override
     public CompletableFuture<ApiResponse<ChatForm>> remove(ChatForm chatForm) {
         String memoryId = null;
@@ -276,6 +305,13 @@ public class AiChatServiceImpl implements AiChatService {
         }
     }
 
+    /**
+     * 以 SSE（Server-Sent Events）流式方式进行聊天对话，实时推送 AI 回复内容。
+     * 聊天历史同样会保存至 Redis。
+     *
+     * @param chatForm 聊天表单，包含消息内容和会话标识
+     * @return SSE 事件发射器，用于向客户端推送流式数据
+     */
     @Override
     public SseEmitter chatStream(ChatForm chatForm) {
         SseEmitter emitter = new SseEmitter(60000L);
@@ -357,6 +393,13 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
 
+    /**
+     * 从配置的 API Key 列表中获取一个当前可用的 Key。
+     * 已被限流的 Key 会在 Redis 中标记，将被跳过。
+     *
+     * @param apiKeyType API Key 类型，"chat" 表示文本聊天，"image" 表示图像生成
+     * @return 可用的 API Key，若全部不可用则返回 null
+     */
     private String getMaybeAPIAvailable(String apiKeyType){
         List<String> apiKeys = List.of();
         if(apiKeyType.equals("chat")){
@@ -376,6 +419,12 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
 
+    /**
+     * 构建 Gemini 图像生成 API 的 JSON 请求体。
+     *
+     * @param imageForm 图像表单，包含提示文本和可选的参考图片
+     * @return JSON 格式的请求体字符串
+     */
     private String buildImageJsonBody(ImageForm imageForm) {
         // part 内容
         Map<String, Object> userPart = new HashMap<>();

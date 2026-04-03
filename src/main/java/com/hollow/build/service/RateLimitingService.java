@@ -20,6 +20,9 @@ import java.time.Duration;
 import static java.time.Duration.ofSeconds;
 
 
+/**
+ * 限流服务类，基于Bucket4j和Redis实现API请求速率限制
+ */
 @Service
 @RequiredArgsConstructor
 public class RateLimitingService {
@@ -27,6 +30,12 @@ public class RateLimitingService {
     private final UserMapper userMapper;
     private final RedissonClient redissonClient;
 
+    /**
+     * 根据标识获取对应的限流桶，使用Redis作为分布式存储
+     *
+     * @param id 限流标识（API Key）
+     * @return 对应的限流桶实例
+     */
     public Bucket getBucket(String id) {
 
         RedissonBasedProxyManager<String> proxyManager = Bucket4jRedisson.casBasedBuilder(((Redisson) redissonClient).getCommandExecutor())
@@ -38,6 +47,13 @@ public class RateLimitingService {
         return proxyManager.getProxy("rate-limit-" + id, () -> getConfigurationByApiKey(id));
     }
 
+    /**
+     * 根据API Key获取限流配置，从数据库查询该Key对应的每小时限流次数
+     *
+     * @param apiKey API密钥
+     * @return 限流桶配置
+     * @throws AuthenticationCredentialsNotFoundException 当API Key无效或无限流配置时抛出
+     */
     public BucketConfiguration getConfigurationByApiKey(String apiKey) {
         Integer limitPerHour = userMapper.getLimitPerHourByApiKey(apiKey);
 
@@ -51,6 +67,12 @@ public class RateLimitingService {
                 .build();
     }
 
+    /**
+     * 根据用户ID获取限流配置，从数据库查询该用户对应的每小时限流次数
+     *
+     * @param userId 用户ID
+     * @return 限流桶配置
+     */
     public BucketConfiguration getConfigurationByUserId(Long userId) {
         Integer limitPerHour = userMapper.getLimitPerHourByUserId(userId);
 

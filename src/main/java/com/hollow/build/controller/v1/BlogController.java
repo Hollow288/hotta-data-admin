@@ -18,6 +18,9 @@ import java.util.List;
 import java.util.Map;
 
 
+/**
+ * 博客控制器，提供博客的增删改查及分页检索等功能
+ */
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/blog")
@@ -26,7 +29,11 @@ public class BlogController {
 
     private final BlogService BlogService;
 
-
+    /**
+     * 查询博客按日期分组的菜单，包含每个日期对应的博客数量
+     *
+     * @return 博客日期菜单列表
+     */
     @GetMapping("/blog-date-menu")
     @Operation(
             summary = "查询博客日期/数量",
@@ -38,6 +45,11 @@ public class BlogController {
         return ApiResponse.success(BlogService.selectBlogDateMenu());
     }
 
+    /**
+     * 查询所有博客标签
+     *
+     * @return 博客标签列表
+     */
     @GetMapping("/blog-date-tags")
     @Operation(
             summary = "查询博客标签",
@@ -49,7 +61,12 @@ public class BlogController {
         return ApiResponse.success(BlogService.selectBlogTags());
     }
 
-
+    /**
+     * 根据日期查询该日期下的博客列表
+     *
+     * @param date 日期字符串
+     * @return 该日期下的博客列表
+     */
     @GetMapping("/blog-date-list/{date}")
     @Operation(
             summary = "根据日期查询博客列表",
@@ -61,6 +78,12 @@ public class BlogController {
         return ApiResponse.success(BlogService.selectBlogDateListByDate(date));
     }
 
+    /**
+     * 根据标签查询博客列表
+     *
+     * @param tag 博客标签
+     * @return 该标签下的博客列表
+     */
     @GetMapping("/blog-tag/{tag}")
     @Operation(
             summary = "根据标签查询博客列表",
@@ -72,7 +95,12 @@ public class BlogController {
         return ApiResponse.success(BlogService.selectBlogDateListByTag(tag));
     }
 
-
+    /**
+     * 根据博客ID查询博客详细内容
+     *
+     * @param articleId 博客文章ID
+     * @return 博客详细信息
+     */
     @GetMapping("/{articleId}")
     @Operation(
             summary = "根据ID查询博客",
@@ -84,7 +112,12 @@ public class BlogController {
         return ApiResponse.success(BlogService.selectBlogById(articleId));
     }
 
-
+    /**
+     * 根据关键词搜索博客
+     *
+     * @param keyWord 搜索关键词
+     * @return 匹配关键词的博客列表
+     */
     @GetMapping("/search/{keyWord}")
     @Operation(
             summary = "根据关键词查询博客",
@@ -96,7 +129,14 @@ public class BlogController {
         return ApiResponse.success(BlogService.selectBlogByKeyWord(keyWord));
     }
 
-
+    /**
+     * 分页查询博客列表，支持按名称搜索（需管理员权限）
+     *
+     * @param page 页码
+     * @param pageSize 每页数量
+     * @param searchName 搜索名称（可选）
+     * @return 分页博客列表
+     */
     @GetMapping("/page/search")
     @Operation(
             summary = "根据关键词分页查询博客",
@@ -109,7 +149,12 @@ public class BlogController {
         return ApiResponse.success(BlogService.selectBlogByPage(page,pageSize,searchName));
     }
 
-
+    /**
+     * 添加新博客（需管理员权限）
+     *
+     * @param blogPost 博客内容
+     * @return 操作结果
+     */
     @PostMapping()
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(
@@ -121,7 +166,13 @@ public class BlogController {
         return ApiResponse.success();
     }
 
-
+    /**
+     * 修改指定ID的博客（需管理员权限）
+     *
+     * @param blogId 博客ID
+     * @param blogPost 修改后的博客内容
+     * @return 操作结果
+     */
     @PutMapping("/{blog_id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(
@@ -133,7 +184,12 @@ public class BlogController {
         return ApiResponse.success();
     }
 
-
+    /**
+     * 删除博客（需管理员权限）
+     *
+     * @param blogPost 包含待删除博客信息的参数
+     * @return 操作结果
+     */
     @PutMapping("/delete")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> deleteBlog(@RequestBody Map<String,Object> blogPost){

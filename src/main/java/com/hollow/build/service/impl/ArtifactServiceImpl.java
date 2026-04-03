@@ -14,6 +14,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 源器（Artifact）服务实现类，提供源器的查询功能，包括全量查询、按 Key 查询和条件筛选。
+ */
 @Service
 @RequiredArgsConstructor
 public class ArtifactServiceImpl implements ArtifactService {
@@ -24,6 +27,12 @@ public class ArtifactServiceImpl implements ArtifactService {
 
     private final MongoTemplate mongoTemplate;
     
+    /**
+     * 获取所有源器列表，并对图标和缩略图 URL 进行编码处理。
+     * 查询结果会被缓存。
+     *
+     * @return 所有源器的列表
+     */
     @Override
     @Cacheable(value = "artifact_all")
     public List<Artifact> getAllArtifact() {
@@ -34,6 +43,13 @@ public class ArtifactServiceImpl implements ArtifactService {
                 }).toList();
     }
 
+    /**
+     * 根据源器的唯一标识 Key 查询源器详情，并处理图标 URL。
+     * 查询结果会被缓存。
+     *
+     * @param itemKey 源器的唯一标识
+     * @return 源器详情，若未找到则返回 null
+     */
     @Override
     @Cacheable(value = "artifact", key = "#itemKey")
     public Artifact getArtifactByKey(String itemKey) {
@@ -50,6 +66,12 @@ public class ArtifactServiceImpl implements ArtifactService {
         return artifact;
     }
 
+    /**
+     * 根据稀有度条件筛选源器列表，返回简要信息。
+     *
+     * @param artifactRarity 源器稀有度，可为 null 表示不筛选
+     * @return 满足条件的源器简要信息列表
+     */
     @Override
     public List<ArtifactListDto> getArtifactByParams(String artifactRarity) {
 
