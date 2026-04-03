@@ -3,6 +3,9 @@ package com.hollow.build.common.enums;
 
 import com.hollow.build.common.ErrorCode;
 
+/**
+ * 全局错误码常量定义，统一维护接口返回使用的错误码与提示信息。
+ */
 public interface GlobalErrorCodeConstants {
 
     ErrorCode SUCCESS = new ErrorCode(200, "成功");

@@ -11,6 +11,9 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
+/**
+ * 登录尝试控制服务，负责记录失败次数、判断封禁状态并输出认证失败响应。
+ */
 @Component
 @RequiredArgsConstructor
 public class LoginAttemptService {
@@ -82,6 +85,12 @@ public class LoginAttemptService {
     }
 
 
+    /**
+     * 向客户端输出未认证错误响应。
+     *
+     * @param response HTTP 响应对象
+     * @throws IOException 写入响应体时可能抛出的异常
+     */
     public void  returnTokenError(HttpServletResponse response) throws IOException {
         ApiResponse<Object> result = new ApiResponse<>(GlobalErrorCodeConstants.UNAUTHORIZED.getCode(), GlobalErrorCodeConstants.UNAUTHORIZED.getMsg());
         response.setStatus(200);
@@ -91,15 +100,30 @@ public class LoginAttemptService {
     }
 
 
+    /**
+     * 获取单个用户名允许的最大失败次数。
+     *
+     * @return 用户名维度的最大失败次数
+     */
     public long getUsernameMaxAttempt() {
         return tokenConfigurationProperties.getUsernameMaxAttempt();
     }
 
 
+    /**
+     * 获取单个 IP 允许的最大失败次数。
+     *
+     * @return IP 维度的最大失败次数
+     */
     public long getIpMaxAttempt() {
         return tokenConfigurationProperties.getIpMaxAttempt();
     }
 
+    /**
+     * 获取登录失败计数在 Redis 中的过期时间。
+     *
+     * @return 失败计数过期时间，单位为秒
+     */
     public long getTtlSeconds() {
         return tokenConfigurationProperties.getTtlSeconds() * 60;
     }

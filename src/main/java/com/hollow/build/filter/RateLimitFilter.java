@@ -88,6 +88,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
 	}
 
 
+	/**
+	 * 判断当前请求处理方法是否标记了跳过限流注解。
+	 *
+	 * @param request HTTP 请求对象
+	 * @return 已声明 {@link BypassRateLimit} 返回 true，否则返回 false
+	 */
 	@SneakyThrows
 	private boolean isBypassed(HttpServletRequest request) {
 		var handlerChain = requestHandlerMapping.getHandler(request);
@@ -97,6 +103,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
 		return Boolean.FALSE;
 	}
 
+	/**
+	 * 写入限流失败响应，并返回客户端下一次允许重试的等待时间。
+	 *
+	 * @param response HTTP 响应对象
+	 * @param consumptionProbe 令牌桶消费结果
+	 */
 	@SneakyThrows
 	private void setRateLimitErrorDetails(HttpServletResponse response, final ConsumptionProbe consumptionProbe) {
 		ApiResponse<Object> result = new ApiResponse<>(GlobalErrorCodeConstants.TOO_MANY_REQUESTS.getCode(), GlobalErrorCodeConstants.TOO_MANY_REQUESTS.getMsg());

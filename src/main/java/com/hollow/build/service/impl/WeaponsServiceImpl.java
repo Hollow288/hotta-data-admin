@@ -22,6 +22,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 
+/**
+ * 武器服务实现类，负责查询武器数据并补全图标与筛选结果。
+ */
 @Service
 @RequiredArgsConstructor
 public class WeaponsServiceImpl implements WeaponsService {
@@ -32,6 +35,11 @@ public class WeaponsServiceImpl implements WeaponsService {
 
     private final MongoTemplate mongoTemplate;
 
+    /**
+     * 查询全部武器信息，并补全图标访问地址。
+     *
+     * @return 全部武器列表
+     */
     @Override
     @Cacheable(value = "weapons_all")
     public List<Weapons> getAllWeapons() {
@@ -66,6 +74,12 @@ public class WeaponsServiceImpl implements WeaponsService {
     }
 
 
+    /**
+     * 根据武器唯一键查询详情，并补全图标访问地址。
+     *
+     * @param itemKey 武器唯一标识
+     * @return 武器详情，未找到时返回 null
+     */
     @Override
     @Cacheable(value = "weapons", key = "#itemKey")
     public Weapons getWeaponByKey(String itemKey) {
@@ -97,6 +111,14 @@ public class WeaponsServiceImpl implements WeaponsService {
         return weapons;
     }
 
+    /**
+     * 按分类、元素和稀有度筛选武器简要信息。
+     *
+     * @param weaponCategory 武器分类，可为空
+     * @param weaponElement 武器元素类型，可为空
+     * @param weaponRarity 武器稀有度，可为空
+     * @return 满足条件的武器列表 DTO 集合
+     */
     @Override
     public List<WeaponsListDto> getWeaponsByParams(String weaponCategory, String weaponElement, String weaponRarity) {
 

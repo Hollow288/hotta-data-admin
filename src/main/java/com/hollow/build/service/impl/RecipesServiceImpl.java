@@ -19,6 +19,9 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * 食谱服务实现类，负责查询食谱数据并组装制作方式明细。
+ */
 @Service
 @RequiredArgsConstructor
 public class RecipesServiceImpl implements RecipesService {
@@ -31,6 +34,11 @@ public class RecipesServiceImpl implements RecipesService {
 
     private final FoodRepository foodRepository;
     
+    /**
+     * 查询全部食谱信息，并补全图标访问地址。
+     *
+     * @return 全部食谱列表
+     */
     @Override
     @Cacheable(value = "recipes_all")
     public List<Recipes> getAllRecipes() {
@@ -40,6 +48,12 @@ public class RecipesServiceImpl implements RecipesService {
                 }).toList();
     }
 
+    /**
+     * 根据食谱唯一键查询详情，并补全图标访问地址。
+     *
+     * @param itemKey 食谱唯一标识
+     * @return 食谱详情，未找到时返回 null
+     */
     @Override
     @Cacheable(value = "recipes", key = "#itemKey")
     public Recipes getRecipesByKey(String itemKey) {
@@ -55,6 +69,12 @@ public class RecipesServiceImpl implements RecipesService {
         return recipes;
     }
 
+    /**
+     * 按分类筛选食谱简要信息。
+     *
+     * @param categories 食谱分类，可为空
+     * @return 满足条件的食谱列表 DTO 集合
+     */
     @Override
     public List<RecipesListDto> getRecipesByParams(String categories) {
         Query query = new Query();
@@ -76,6 +96,12 @@ public class RecipesServiceImpl implements RecipesService {
         return recipesSearchList;
     }
 
+    /**
+     * 根据食谱唯一键查询制作详情，并组装食材信息与图标地址。
+     *
+     * @param itemKey 食谱唯一标识
+     * @return 包含制作方式和食材明细的食谱 DTO
+     */
     @Override
     public RecipesDto getRecipesHowMakeByKey(String itemKey) {
 

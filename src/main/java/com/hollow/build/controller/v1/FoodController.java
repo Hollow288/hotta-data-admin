@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 食物控制器，提供食物列表、详情和检索接口。
+ */
 @RestController
 @RequestMapping("/api/v1/food")
 @RequiredArgsConstructor
@@ -21,6 +24,11 @@ public class FoodController {
 
     private final FoodService foodService;
     
+    /**
+     * 查询全部食物数据。
+     *
+     * @return 包含全部食物信息的响应结果
+     */
     @GetMapping
     @BypassRateLimit
     @PublicEndpoint
@@ -30,6 +38,12 @@ public class FoodController {
     }
 
 
+    /**
+     * 根据食物唯一键查询详情。
+     *
+     * @param itemKey 食物唯一标识
+     * @return 包含食物详情的响应结果
+     */
     @GetMapping("/{item_key}")
     @BypassRateLimit
     @PublicEndpoint
@@ -40,6 +54,11 @@ public class FoodController {
     }
 
 
+    /**
+     * 查询用于列表展示的食物简要信息。
+     *
+     * @return 包含食物列表 DTO 的响应结果
+     */
     @GetMapping("/search")
     @BypassRateLimit
     @PublicEndpoint

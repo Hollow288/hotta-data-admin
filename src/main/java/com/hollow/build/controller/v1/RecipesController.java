@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 食谱控制器，提供食谱列表、详情和制作方式查询接口。
+ */
 @RestController
 @RequestMapping("/api/v1/recipes")
 @RequiredArgsConstructor
@@ -22,6 +25,11 @@ public class RecipesController {
 
     private final RecipesService recipesService;
     
+    /**
+     * 查询全部食谱数据。
+     *
+     * @return 包含全部食谱信息的响应结果
+     */
     @GetMapping
     @PublicEndpoint
     @Operation(summary = "查询所有食谱", description = "获取所有食谱的基本信息")
@@ -30,6 +38,12 @@ public class RecipesController {
     }
 
 
+    /**
+     * 根据食谱唯一键查询详情。
+     *
+     * @param itemKey 食谱唯一标识
+     * @return 包含食谱详情的响应结果
+     */
     @GetMapping("/{item_key}")
     @BypassRateLimit
     @PublicEndpoint
@@ -40,6 +54,12 @@ public class RecipesController {
     }
 
 
+    /**
+     * 按分类条件筛选食谱列表。
+     *
+     * @param categories 食谱分类，可为空
+     * @return 包含食谱简要信息列表的响应结果
+     */
     @GetMapping("/search")
     @BypassRateLimit
     @PublicEndpoint
@@ -50,6 +70,12 @@ public class RecipesController {
     }
 
 
+    /**
+     * 根据食谱唯一键查询制作方式和食材信息。
+     *
+     * @param itemKey 食谱唯一标识
+     * @return 包含制作详情的响应结果
+     */
     @GetMapping("/how-make/{item_key}")
     @BypassRateLimit
     @PublicEndpoint

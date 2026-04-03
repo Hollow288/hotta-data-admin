@@ -14,6 +14,11 @@ import java.nio.file.Paths;
 import java.util.Set;
 import java.util.stream.Stream;
 
+/**
+ * 视频上传定时任务调度器。
+ * <p>定期扫描指定目录下的视频文件，自动上传至 Google Drive，
+ * 并根据配置决定上传后是否删除本地文件。</p>
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -26,6 +31,11 @@ public class VideoUploadScheduler {
     private final GoogleDriveUtil googleDriveUtil;
     private final GoogleDriveConfigurationProperties properties;
 
+    /**
+     * 扫描监控目录并上传视频文件至 Google Drive。
+     * <p>按 cron 表达式定时执行，默认每 5 分钟一次。
+     * 若文件已存在于 Google Drive 则跳过上传。</p>
+     */
     @Scheduled(cron = "${com.hollow.google-drive.cron:0 */5 * * * ?}")
     public void scanAndUploadVideos() {
         Path watchDir = Paths.get(properties.getWatchDir());

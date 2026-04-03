@@ -20,6 +20,11 @@ public class JwtUtil {
 
     private final TokenConfigurationProperties tokenConfigurationProperties;
 
+    /**
+     * 创建 JWT 工具实例。
+     *
+     * @param tokenConfigurationProperties Token 相关配置属性
+     */
     public JwtUtil(TokenConfigurationProperties tokenConfigurationProperties) {
         this.tokenConfigurationProperties = tokenConfigurationProperties;
     }

@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 时装服务实现类，负责查询时装数据并补全图标访问地址。
+ */
 @Service
 @RequiredArgsConstructor
 public class FashionServiceImpl implements FashionService {
@@ -18,6 +21,11 @@ public class FashionServiceImpl implements FashionService {
 
     private final MinioUtil minioUtil;
     
+    /**
+     * 查询全部时装信息，并补全图标访问地址。
+     *
+     * @return 全部时装列表
+     */
     @Override
     @Cacheable(value = "fashion_all")
     public List<Fashion> getAllFashion() {
@@ -31,6 +39,12 @@ public class FashionServiceImpl implements FashionService {
                 .toList();
     }
 
+    /**
+     * 根据时装唯一键查询详情，并补全图标访问地址。
+     *
+     * @param itemKey 时装唯一标识
+     * @return 时装详情，未找到时返回 null
+     */
     @Override
     @Cacheable(value = "fashion", key = "#itemKey")
     public Fashion getFashionByKey(String itemKey) {

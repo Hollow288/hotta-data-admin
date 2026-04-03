@@ -15,6 +15,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * 时装控制器，提供时装的查询相关接口
+ */
 @RestController
 @RequestMapping("/api/v1/fashion")
 @RequiredArgsConstructor
@@ -22,7 +25,12 @@ import java.util.List;
 public class FashionController {
 
     private final FashionService fashionService;
-    
+
+    /**
+     * 查询所有时装信息
+     *
+     * @return 所有时装列表
+     */
     @GetMapping
     @BypassRateLimit
     @PublicEndpoint
@@ -31,7 +39,12 @@ public class FashionController {
         return ApiResponse.success(fashionService.getAllFashion());
     }
 
-
+    /**
+     * 根据唯一标识查询时装详细信息
+     *
+     * @param itemKey 时装的唯一标识
+     * @return 时装详细信息
+     */
     @GetMapping("/{item_key}")
     @BypassRateLimit
     @PublicEndpoint

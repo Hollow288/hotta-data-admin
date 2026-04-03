@@ -19,6 +19,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Service;
 
+/**
+ * 用户服务实现类，负责处理登录认证和令牌缓存逻辑。
+ */
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -29,6 +32,13 @@ public class UserServiceImpl implements UserService {
 	private final JwtUtil jwtUtil;
 	private final LoginAttemptService loginAttemptService;
 
+	/**
+	 * 校验用户登录凭证，登录成功后生成访问令牌与刷新令牌。
+	 *
+	 * @param userLoginRequest 登录请求参数，包含用户名和密码
+	 * @param request HTTP 请求对象，用于获取客户端 IP
+	 * @return 包含令牌信息或错误信息的响应结果
+	 */
 	@Override
 	public ApiResponse<TokenSuccessResponseDto> login(UserLoginRequestDto userLoginRequest, HttpServletRequest request) {
 

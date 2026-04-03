@@ -14,6 +14,9 @@ import java.util.List;
 import java.util.UUID;
 
 
+/**
+ * 文件上传服务实现类，负责普通上传、分片上传、分片合并与断点续传检查。
+ */
 @Service
 @RequiredArgsConstructor
 public class UploadServiceImpl implements UploadService {
@@ -22,6 +25,13 @@ public class UploadServiceImpl implements UploadService {
 
     private static final String BIG_FILE_BUCKET_NAME = "big-file";
 
+    /**
+     * 上传单个文件到指定存储桶。
+     *
+     * @param file 待上传文件
+     * @param bucketName 目标存储桶名称
+     * @return 包含上传结果或错误信息的响应结果
+     */
     @Override
     public ApiResponse<String> uploadFile(MultipartFile file, String bucketName) {
 
@@ -38,6 +48,12 @@ public class UploadServiceImpl implements UploadService {
 
 
 
+    /**
+     * 上传单个分片到临时目录，用于后续的大文件合并。
+     *
+     * @param chunkDTO 分片上传参数，包含文件标识、分片编号和文件内容
+     * @return 包含上传结果或错误信息的响应结果
+     */
     @Override
     public ApiResponse<String> uploadChunk(ChunkUploadDTO chunkDTO) {
         try {
@@ -61,7 +77,10 @@ public class UploadServiceImpl implements UploadService {
     }
 
     /**
-     * 2. 合并分片 (前端传完所有分片后调用此接口)
+     * 合并已上传的全部分片，并返回可访问的预览地址。
+     *
+     * @param chunkDTO 分片合并参数，包含文件标识、文件名和总分片数
+     * @return 包含合并结果或预览地址的响应结果
      */
     @Override
     public ApiResponse<String> mergeChunks(ChunkUploadDTO chunkDTO) {
@@ -122,6 +141,12 @@ public class UploadServiceImpl implements UploadService {
         }
     }
 
+    /**
+     * 查询指定文件已上传完成的分片编号列表。
+     *
+     * @param identifier 文件唯一标识
+     * @return 包含已上传分片编号列表的响应结果
+     */
     @Override
     public ApiResponse<List<Integer>> checkChunks(String identifier) {
         return ApiResponse.success(minioUtil.getChunkIndices(BIG_FILE_BUCKET_NAME, identifier));

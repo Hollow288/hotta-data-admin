@@ -12,8 +12,16 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 @SpringBootApplication
 @EnableWebSecurity
 @EnableMethodSecurity
+/**
+ * Spring Boot 应用启动入口，负责启用缓存、定时任务和方法级安全能力。
+ */
 public class HottaDataAdminApplication {
 
+    /**
+     * 启动 Hotta Data Admin 应用。
+     *
+     * @param args 启动参数
+     */
     public static void main(String[] args) {
         SpringApplication.run(HottaDataAdminApplication.class, args);
     }

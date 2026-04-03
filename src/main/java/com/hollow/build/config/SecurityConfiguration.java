@@ -89,6 +89,11 @@ public class SecurityConfiguration {
 		return authenticationConfiguration.getAuthenticationManager();
 	}
 	
+	/**
+	 * 创建全局 CORS 配置源，统一定义允许的来源、方法与请求头。
+	 *
+	 * @return 注册好跨域规则的 CORS 配置源
+	 */
 	private CorsConfigurationSource corsConfigurationSource() {
 		final var corsConfiguration = new CorsConfiguration();
 		corsConfiguration.setAllowedOrigins(List.of("*"));

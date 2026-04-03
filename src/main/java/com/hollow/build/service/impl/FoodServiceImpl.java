@@ -13,6 +13,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 食物服务实现类，负责查询食物数据并补全图标访问地址。
+ */
 @Service
 @RequiredArgsConstructor
 public class FoodServiceImpl implements FoodService {
@@ -23,6 +26,11 @@ public class FoodServiceImpl implements FoodService {
 
     private final MongoTemplate mongoTemplate;
     
+    /**
+     * 查询全部食物信息，并补全图标访问地址。
+     *
+     * @return 全部食物列表
+     */
     @Override
     @Cacheable(value = "food_all")
     public List<Food> getAllFood() {
@@ -32,6 +40,12 @@ public class FoodServiceImpl implements FoodService {
                 }).toList();
     }
 
+    /**
+     * 根据食物唯一键查询详情，并补全图标访问地址。
+     *
+     * @param itemKey 食物唯一标识
+     * @return 食物详情，未找到时返回 null
+     */
     @Override
     @Cacheable(value = "food", key = "#itemKey")
     public Food getFoodByKey(String itemKey) {
@@ -47,6 +61,11 @@ public class FoodServiceImpl implements FoodService {
         return food;
     }
 
+    /**
+     * 查询用于列表展示的食物简要信息。
+     *
+     * @return 食物列表 DTO 集合
+     */
     @Override
     public List<FoodListDto> getFoodByParams() {
         Query query = new Query();

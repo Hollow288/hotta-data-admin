@@ -37,6 +37,12 @@ public class BlogServiceImpl implements BlogService {
         return blogMapper.getBlogDateMenu();
     }
 
+    /**
+     * 根据归档月份查询该月内的博客列表。
+     *
+     * @param date 月份字符串，格式通常为 yyyy-MM
+     * @return 该月份下的博客简要信息列表
+     */
     @Override
     public List<BlogDateListDto> selectBlogDateListByDate(String date) {
         // 1. 假设前端传来的 date 格式是 "2023-11"
@@ -58,16 +64,34 @@ public class BlogServiceImpl implements BlogService {
         return blogMapper.getBlogDateListByDate(startDate, endDate);
     }
 
+    /**
+     * 根据标签查询博客列表。
+     *
+     * @param tag 博客标签
+     * @return 匹配标签的博客简要信息列表
+     */
     @Override
     public List<BlogDateListDto> selectBlogDateListByTag(String tag) {
         return blogMapper.getBlogDateListByTag(tag);
     }
 
+    /**
+     * 根据文章 ID 查询博客详情。
+     *
+     * @param articleId 博客文章 ID
+     * @return 对应的博客详情
+     */
     @Override
     public BlogPost selectBlogById(String articleId) {
         return blogMapper.selectBlogById(articleId);
     }
 
+    /**
+     * 根据关键词模糊搜索博客。
+     *
+     * @param keyWord 搜索关键词
+     * @return 匹配关键词的博客简要信息列表
+     */
     @Override
     public List<BlogDateListDto> selectBlogByKeyWord(String keyWord) {
 
@@ -76,6 +100,14 @@ public class BlogServiceImpl implements BlogService {
         return blogPosts;
     }
 
+    /**
+     * 分页查询博客列表。
+     *
+     * @param page 当前页码
+     * @param pageSize 每页条数
+     * @param searchName 搜索关键词，可为空
+     * @return 博客分页结果
+     */
     @Override
     public PageResult<BlogDateListDto> selectBlogByPage(Integer page, Integer pageSize, String searchName) {
         int offset = (page - 1) * pageSize;
@@ -85,16 +117,32 @@ public class BlogServiceImpl implements BlogService {
         return new PageResult<>(allBlogInfoByPage, blogMapper.getCountBlog(searchName));
     }
 
+    /**
+     * 新增博客文章。
+     *
+     * @param blogPost 博客实体数据
+     */
     @Override
     public void addBlog(BlogPost blogPost) {
         blogMapper.addBlogPost(blogPost);
     }
 
+    /**
+     * 更新指定博客文章。
+     *
+     * @param blogId 博客 ID
+     * @param blogPost 更新后的博客数据
+     */
     @Override
     public void updateBlog(Integer blogId, BlogPost blogPost) {
         blogMapper.updateBlog(blogId, blogPost);
     }
 
+    /**
+     * 批量删除博客文章。
+     *
+     * @param blogPost 包含待删除博客 ID 列表的参数映射
+     */
     @Override
     public void deleteBlog(Map<String, Object> blogPost) {
         List<String> blogList = (List<String>)blogPost.get("blogIds");
@@ -103,6 +151,11 @@ public class BlogServiceImpl implements BlogService {
         }
     }
 
+    /**
+     * 查询并整理所有已使用的博客标签。
+     *
+     * @return 去重排序后的标签列表
+     */
     @Override
     public List<String> selectBlogTags() {
         List<String> rawTagsList = blogMapper.selectBlogTags();

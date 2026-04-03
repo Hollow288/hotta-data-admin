@@ -34,6 +34,14 @@ import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Google Drive 工具类
+ * <p>
+ * 封装 Google Drive API 的常用操作，包括文件夹管理、文件上传/下载、
+ * 查询搜索、链接获取、共享权限设置、文件移动/重命名/删除等功能。
+ * 使用 OAuth 2.0 授权方式，首次调用时会触发授权流程。
+ * </p>
+ */
 @Slf4j
 @Component
 @RequiredArgsConstructor

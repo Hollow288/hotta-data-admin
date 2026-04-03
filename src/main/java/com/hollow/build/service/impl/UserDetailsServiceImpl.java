@@ -13,6 +13,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * Spring Security 用户详情服务实现类，负责根据用户名加载认证所需的用户与角色信息。
+ */
 @Service
 @Transactional
 @RequiredArgsConstructor
@@ -23,6 +26,13 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
 
     //实现UserDetailsService接口，重写UserDetails方法，自定义用户的信息从数据中查询
+    /**
+     * 根据用户名加载用户认证信息。
+     *
+     * @param username 用户名
+     * @return Spring Security 所需的用户详情对象
+     * @throws UsernameNotFoundException 用户不存在时抛出异常
+     */
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
 
