@@ -56,6 +56,13 @@ com:
       endpoint: ${MINIO_ENDPOINT:}
       access-key: ${MINIO_ACCESSKEY:}
       secret-key: ${MINIO_SECRETKEY:}
+    google-drive:
+      credentials-path: ./config/client_secret.json
+      tokens-dir: ./config/tokens
+      watch-dir: ./videos
+      target-folder: video
+      delete-after-upload: true
+      cron: "0 */5 * * * ?"
     ai:
       text-api-key: ${AI_TEXT_APIKEY}
       text-model: ${AI_TEXT_MODEL}
