@@ -8,11 +8,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Set;
+import java.util.stream.Stream;
 
 @Slf4j
 @Component
@@ -39,38 +39,33 @@ public class VideoUploadScheduler {
         try {
             String folderId = googleDriveUtil.getOrCreateFolder(properties.getTargetFolder());
 
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(watchDir)) {
-                for (Path file : stream) {
-                    if (!Files.isRegularFile(file)) {
-                        continue;
-                    }
+            try (Stream<Path> stream = Files.walk(watchDir)) {
+                stream.filter(Files::isRegularFile)
+                        .filter(file -> {
+                            String name = file.getFileName().toString().toLowerCase();
+                            return VIDEO_EXTENSIONS.stream().anyMatch(name::endsWith);
+                        })
+                        .forEach(file -> {
+                            try {
+                                if (googleDriveUtil.fileExists(file.getFileName().toString(), folderId)) {
+                                    log.info("文件已存在于 Google Drive，跳过: {}", file.getFileName());
+                                    if (properties.isDeleteAfterUpload()) {
+                                        Files.delete(file);
+                                        log.info("已删除本地已上传文件: {}", file.getFileName());
+                                    }
+                                    return;
+                                }
 
-                    String fileName = file.getFileName().toString().toLowerCase();
-                    boolean isVideo = VIDEO_EXTENSIONS.stream().anyMatch(fileName::endsWith);
-                    if (!isVideo) {
-                        continue;
-                    }
+                                googleDriveUtil.uploadFile(file, folderId);
 
-                    try {
-                        if (googleDriveUtil.fileExists(file.getFileName().toString(), folderId)) {
-                            log.info("文件已存在于 Google Drive，跳过: {}", file.getFileName());
-                            if (properties.isDeleteAfterUpload()) {
-                                Files.delete(file);
-                                log.info("已删除本地已上传文件: {}", file.getFileName());
+                                if (properties.isDeleteAfterUpload()) {
+                                    Files.delete(file);
+                                    log.info("已删除本地文件: {}", file.getFileName());
+                                }
+                            } catch (IOException e) {
+                                log.error("上传文件失败: {}", file.getFileName(), e);
                             }
-                            continue;
-                        }
-
-                        googleDriveUtil.uploadFile(file, folderId);
-
-                        if (properties.isDeleteAfterUpload()) {
-                            Files.delete(file);
-                            log.info("已删除本地文件: {}", file.getFileName());
-                        }
-                    } catch (IOException e) {
-                        log.error("上传文件失败: {}", file.getFileName(), e);
-                    }
-                }
+                        });
             }
 
             log.info("视频扫描上传任务完成");
