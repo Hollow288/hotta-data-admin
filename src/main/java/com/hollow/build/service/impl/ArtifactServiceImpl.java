@@ -73,6 +73,7 @@ public class ArtifactServiceImpl implements ArtifactService {
      * @return 满足条件的源器简要信息列表
      */
     @Override
+    @Cacheable(value = "artifact_list", key = "#artifactRarity")
     public List<ArtifactListDto> getArtifactByParams(String artifactRarity) {
 
         Query query = new Query();

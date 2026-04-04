@@ -7,6 +7,9 @@ import com.hollow.build.entity.mysql.BlogPost;
 import com.hollow.build.repository.mysql.BlogMapper;
 import com.hollow.build.service.BlogService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
 import java.time.YearMonth;
@@ -33,6 +36,7 @@ public class BlogServiceImpl implements BlogService {
      * @return 按日期分组的博客归档菜单
      */
     @Override
+    @Cacheable(value = "blog_date_menu")
     public List<BlogDateMenuDto> selectBlogDateMenu() {
         return blogMapper.getBlogDateMenu();
     }
@@ -44,6 +48,7 @@ public class BlogServiceImpl implements BlogService {
      * @return 该月份下的博客简要信息列表
      */
     @Override
+    @Cacheable(value = "blog_date_list", key = "#date")
     public List<BlogDateListDto> selectBlogDateListByDate(String date) {
         // 1. 假设前端传来的 date 格式是 "2023-11"
         YearMonth inputMonth = YearMonth.parse(date);
@@ -71,6 +76,7 @@ public class BlogServiceImpl implements BlogService {
      * @return 匹配标签的博客简要信息列表
      */
     @Override
+    @Cacheable(value = "blog_tag_list", key = "#tag")
     public List<BlogDateListDto> selectBlogDateListByTag(String tag) {
         return blogMapper.getBlogDateListByTag(tag);
     }
@@ -82,6 +88,7 @@ public class BlogServiceImpl implements BlogService {
      * @return 对应的博客详情
      */
     @Override
+    @Cacheable(value = "blog", key = "#articleId")
     public BlogPost selectBlogById(String articleId) {
         return blogMapper.selectBlogById(articleId);
     }
@@ -93,11 +100,9 @@ public class BlogServiceImpl implements BlogService {
      * @return 匹配关键词的博客简要信息列表
      */
     @Override
+    @Cacheable(value = "blog_keyword", key = "#keyWord")
     public List<BlogDateListDto> selectBlogByKeyWord(String keyWord) {
-
-        List<BlogDateListDto> blogPosts = blogMapper.selectBlogByKeyWord(keyWord);
-
-        return blogPosts;
+        return blogMapper.selectBlogByKeyWord(keyWord);
     }
 
     /**
@@ -109,6 +114,7 @@ public class BlogServiceImpl implements BlogService {
      * @return 博客分页结果
      */
     @Override
+    @Cacheable(value = "blog_page", key = "#page + '-' + #pageSize + '-' + #searchName")
     public PageResult<BlogDateListDto> selectBlogByPage(Integer page, Integer pageSize, String searchName) {
         int offset = (page - 1) * pageSize;
         int limit = pageSize;
@@ -123,6 +129,14 @@ public class BlogServiceImpl implements BlogService {
      * @param blogPost 博客实体数据
      */
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "blog_date_menu", allEntries = true),
+            @CacheEvict(value = "blog_date_list", allEntries = true),
+            @CacheEvict(value = "blog_tag_list", allEntries = true),
+            @CacheEvict(value = "blog_page", allEntries = true),
+            @CacheEvict(value = "blog_tags", allEntries = true),
+            @CacheEvict(value = "blog_keyword", allEntries = true)
+    })
     public void addBlog(BlogPost blogPost) {
         blogMapper.addBlogPost(blogPost);
     }
@@ -134,6 +148,15 @@ public class BlogServiceImpl implements BlogService {
      * @param blogPost 更新后的博客数据
      */
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "blog_date_menu", allEntries = true),
+            @CacheEvict(value = "blog_date_list", allEntries = true),
+            @CacheEvict(value = "blog_tag_list", allEntries = true),
+            @CacheEvict(value = "blog", allEntries = true),
+            @CacheEvict(value = "blog_page", allEntries = true),
+            @CacheEvict(value = "blog_tags", allEntries = true),
+            @CacheEvict(value = "blog_keyword", allEntries = true)
+    })
     public void updateBlog(Integer blogId, BlogPost blogPost) {
         blogMapper.updateBlog(blogId, blogPost);
     }
@@ -144,6 +167,15 @@ public class BlogServiceImpl implements BlogService {
      * @param blogPost 包含待删除博客 ID 列表的参数映射
      */
     @Override
+    @Caching(evict = {
+            @CacheEvict(value = "blog_date_menu", allEntries = true),
+            @CacheEvict(value = "blog_date_list", allEntries = true),
+            @CacheEvict(value = "blog_tag_list", allEntries = true),
+            @CacheEvict(value = "blog", allEntries = true),
+            @CacheEvict(value = "blog_page", allEntries = true),
+            @CacheEvict(value = "blog_tags", allEntries = true),
+            @CacheEvict(value = "blog_keyword", allEntries = true)
+    })
     public void deleteBlog(Map<String, Object> blogPost) {
         List<String> blogList = (List<String>)blogPost.get("blogIds");
         if (blogList != null && !blogList.isEmpty()) {
@@ -157,6 +189,7 @@ public class BlogServiceImpl implements BlogService {
      * @return 去重排序后的标签列表
      */
     @Override
+    @Cacheable(value = "blog_tags")
     public List<String> selectBlogTags() {
         List<String> rawTagsList = blogMapper.selectBlogTags();
         if (rawTagsList == null || rawTagsList.isEmpty()) {

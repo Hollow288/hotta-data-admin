@@ -76,6 +76,7 @@ public class RecipesServiceImpl implements RecipesService {
      * @return 满足条件的食谱列表 DTO 集合
      */
     @Override
+    @Cacheable(value = "recipes_list", key = "#categories")
     public List<RecipesListDto> getRecipesByParams(String categories) {
         Query query = new Query();
 
@@ -103,6 +104,7 @@ public class RecipesServiceImpl implements RecipesService {
      * @return 包含制作方式和食材明细的食谱 DTO
      */
     @Override
+    @Cacheable(value = "recipes_howmake", key = "#itemKey")
     public RecipesDto getRecipesHowMakeByKey(String itemKey) {
 
         Recipes recipes = recipesRepository.findByRecipesKey(itemKey);

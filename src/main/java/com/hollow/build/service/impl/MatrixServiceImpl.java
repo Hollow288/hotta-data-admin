@@ -97,6 +97,7 @@ public class MatrixServiceImpl implements MatrixService {
      * @return 满足条件的意志列表 DTO 集合
      */
     @Override
+    @Cacheable(value = "matrix_list", key = "#matrixQuality")
     public List<MatrixListDto> getMatrixByParams(String matrixQuality) {
         Query query = new Query();
 

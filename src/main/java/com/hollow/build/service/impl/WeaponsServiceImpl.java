@@ -120,6 +120,7 @@ public class WeaponsServiceImpl implements WeaponsService {
      * @return 满足条件的武器列表 DTO 集合
      */
     @Override
+    @Cacheable(value = "weapons_list", key = "#weaponCategory + '-' + #weaponElement + '-' + #weaponRarity")
     public List<WeaponsListDto> getWeaponsByParams(String weaponCategory, String weaponElement, String weaponRarity) {
 
         // 创建一个列表，用来放匹配条件

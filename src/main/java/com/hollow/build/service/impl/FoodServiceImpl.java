@@ -67,6 +67,7 @@ public class FoodServiceImpl implements FoodService {
      * @return 食物列表 DTO 集合
      */
     @Override
+    @Cacheable(value = "food_list")
     public List<FoodListDto> getFoodByParams() {
         Query query = new Query();
 
