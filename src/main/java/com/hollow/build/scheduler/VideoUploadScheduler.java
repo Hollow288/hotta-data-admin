@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Set;
 import java.util.stream.Stream;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 视频上传定时任务调度器。
@@ -57,22 +58,18 @@ public class VideoUploadScheduler {
                         })
                         .forEach(file -> {
                             try {
+                                if (!isFileStable(file)) {
+                                    log.info("文件仍在写入中，跳过: {}", file.getFileName());
+                                    return;
+                                }
+
                                 if (googleDriveUtil.fileExists(file.getFileName().toString(), folderId)) {
                                     log.info("文件已存在于 Google Drive，跳过: {}", file.getFileName());
-                                    if (properties.isDeleteAfterUpload()) {
-                                        Files.delete(file);
-                                        log.info("已删除本地已上传文件: {}", file.getFileName());
-                                    }
                                     return;
                                 }
 
                                 googleDriveUtil.uploadFile(file, folderId);
-
-                                if (properties.isDeleteAfterUpload()) {
-                                    Files.delete(file);
-                                    log.info("已删除本地文件: {}", file.getFileName());
-                                }
-                            } catch (IOException e) {
+                            } catch (IOException | InterruptedException e) {
                                 log.error("上传文件失败: {}", file.getFileName(), e);
                             }
                         });
@@ -82,5 +79,16 @@ public class VideoUploadScheduler {
         } catch (IOException e) {
             log.error("视频上传定时任务执行失败", e);
         }
+    }
+
+    /**
+     * 检查文件大小是否稳定，用于判断 qBittorrent 是否已完成下载。
+     * 间隔 3 秒采样两次，若大小一致且不为零则认为文件已写入完毕。
+     */
+    private boolean isFileStable(Path file) throws IOException, InterruptedException {
+        long size1 = Files.size(file);
+        TimeUnit.SECONDS.sleep(3);
+        long size2 = Files.size(file);
+        return size1 == size2 && size1 > 0;
     }
 }
