@@ -19,6 +19,16 @@ spring:
       uri: ${MONGODB_URI:}
   cache:
     type: redis
+  rabbitmq:
+    host: 127.0.0.1
+    port: 5672
+    username: guest
+    password: guest
+    listener:
+      simple:
+        prefetch: 1
+        concurrency: 1
+        max-concurrency: 2
 
 server:
   port: 5777
