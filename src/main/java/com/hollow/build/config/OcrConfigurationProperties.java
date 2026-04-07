@@ -51,7 +51,7 @@ public class OcrConfigurationProperties {
 
     /**
      * OCR 上传允许的最大文件大小，单位为字节。
-     * 默认 5MB，避免将大文件 Base64 后塞进 MQ 导致消息体过大。
+     * 默认 5MB，防止上传过大图片占用过多 MinIO 存储和 OCR 处理资源。
      */
     private long maxFileSizeBytes = 5L * 1024 * 1024;
 
@@ -82,6 +82,12 @@ public class OcrConfigurationProperties {
      * 消息会先进入 retry queue，TTL 到期后再回到主队列。
      */
     private long retryDelayMillis = 15000;
+
+    /**
+     * OCR 临时图片存储的 MinIO bucket 名称。
+     * 上传的图片会暂存到该 bucket，MQ 消息中只传递对象路径，避免消息体过大。
+     */
+    private String minioBucket = "ocr-temp";
 
     /**
      * 任务允许处于 PENDING 状态的最长时间，单位为秒。

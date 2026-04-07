@@ -7,6 +7,7 @@ import com.hollow.build.config.RabbitMQConfig;
 import com.hollow.build.dto.OcrTaskDto;
 import com.hollow.build.service.OcrService;
 import com.hollow.build.service.OcrTaskStateService;
+import com.hollow.build.utils.MinioUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -15,7 +16,7 @@ import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Base64;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -26,8 +27,8 @@ import java.util.UUID;
 /**
  * OCR 服务实现类，充当消息队列的<b>生产者</b>角色。
  * <p>
- * 负责接收前端上传的图片，将其转换为 Base64 后封装成消息发送到 RabbitMQ 队列，
- * 同时在 Redis 中维护任务状态，供前端轮询查询。
+ * 负责接收前端上传的图片，将其存储到 MinIO 临时 bucket 后，
+ * 将对象路径封装成消息发送到 RabbitMQ 队列，同时在 Redis 中维护任务状态，供前端轮询查询。
  * <p>
  * 本类<b>不直接调用</b> RapidOCR 服务，实际的 OCR 识别由消费者 {@link com.hollow.build.mq.OcrConsumer} 完成。
  */
@@ -46,6 +47,7 @@ public class OcrServiceImpl implements OcrService {
 
     private final OcrTaskStateService ocrTaskStateService;
     private final OcrConfigurationProperties ocrConfig;
+    private final MinioUtil minioUtil;
 
     /**
      * {@inheritDoc}
@@ -53,9 +55,10 @@ public class OcrServiceImpl implements OcrService {
      * 实现细节：
      * <ol>
      *   <li>通过 UUID 生成唯一任务标识 taskId</li>
-     *   <li>将 MultipartFile 的字节内容转为 Base64 字符串（因为 RabbitMQ 消息需要可序列化的格式）</li>
-     *   <li>构建消息体 Map，包含 taskId、imageBase64、fileName 三个字段</li>
-     *   <li>在 Redis 中写入初始状态 PENDING，key 为 "ocr:result:{taskId}"，过期时间由配置决定</li>
+     *   <li>将 MultipartFile 上传到 MinIO 临时 bucket，避免将大文件内容放入 MQ 消息体</li>
+     *   <li>构建消息体 Map，包含 taskId、bucketName、objectName、fileName 四个字段</li>
+     *   <li>在 Redis 中写入初始状态 PENDING，key 为 "ocr:result:{taskId}"，过期时间由配置决定，
+     *       同时将 taskId 加入 Redis Set（ocr:active-tasks）用于活跃任务跟踪</li>
      *   <li>通过 RabbitTemplate 将消息发送到 ocr.exchange 交换机，路由键为 ocr.task，
      *       交换机根据路由键将消息投递到 ocr.queue 队列</li>
      *   <li>消息发送完成后立即返回 taskId，不等待 OCR 处理结果</li>
@@ -77,14 +80,21 @@ public class OcrServiceImpl implements OcrService {
         try {
             taskId = UUID.randomUUID().toString();
 
-            // 将图片转为 Base64 字符串，使其可以作为 JSON 消息体的一部分通过 RabbitMQ 传输
-            String base64Image = Base64.getEncoder().encodeToString(file.getBytes());
+            // 将图片上传到 MinIO 临时存储，MQ 消息中只传对象路径，避免消息体过大
+            String fileName = file.getOriginalFilename();
+            String objectName = "ocr/" + taskId + "/" + (fileName != null ? fileName : "image.png");
+            String bucketName = ocrConfig.getMinioBucket();
+            minioUtil.ensureBucketExists(bucketName);
+            try (InputStream inputStream = file.getInputStream()) {
+                minioUtil.putObject(bucketName, objectName, inputStream);
+            }
 
-            // 构建发送到 RabbitMQ 的消息体
+            // 构建发送到 RabbitMQ 的消息体（只传路径，不传图片内容）
             Map<String, Object> message = new HashMap<>();
             message.put("taskId", taskId);
-            message.put("imageBase64", base64Image);
-            message.put("fileName", file.getOriginalFilename());
+            message.put("bucketName", bucketName);
+            message.put("objectName", objectName);
+            message.put("fileName", fileName);
             message.put("retryCount", 0);
 
             // 在 Redis 中创建初始任务记录，状态为 PENDING，表示任务已提交但尚未被消费者处理

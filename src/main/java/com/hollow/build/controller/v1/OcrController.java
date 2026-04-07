@@ -46,7 +46,7 @@ public class OcrController {
     /**
      * 提交 OCR 识别任务。
      * <p>
-     * 接收前端上传的图片文件，将其封装为消息发送到 RabbitMQ 队列进行异步处理。
+     * 接收前端上传的图片文件，将其存储到 MinIO 后，通过 RabbitMQ 队列进行异步处理。
      * 接口会立即返回一个 taskId，不会等待 OCR 识别完成。
      *
      * @param file 上传的图片文件（通过 multipart/form-data 传输，参数名为 "file"）

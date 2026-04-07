@@ -6,19 +6,20 @@ import com.hollow.build.dto.OcrTaskDto;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
 import com.hollow.build.service.OcrTaskStateService;
+import com.hollow.build.utils.MinioUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
+import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,11 +30,11 @@ import java.util.Map;
  * 当生产者（{@link com.hollow.build.service.impl.OcrServiceImpl}）向队列发送 OCR 任务消息后，
  * 本类会自动拉取消息并执行以下操作：
  * <ol>
- *   <li>从消息中取出 taskId、imageBase64、fileName</li>
+ *   <li>从消息中取出 taskId、bucketName、objectName、fileName</li>
  *   <li>更新 Redis 中的任务状态为 PROCESSING</li>
- *   <li>将 Base64 字符串还原为图片字节数组</li>
+ *   <li>从 MinIO 读取图片字节数组</li>
  *   <li>构建 multipart/form-data 格式的 HTTP 请求体（字段名 "file"，与 RapidOCR FastAPI 的 UploadFile 参数匹配）</li>
- *   <li>通过 HttpClient 将请求发送到本地 RapidOCR 服务（默认 http://localhost:8000/ocr）</li>
+ *   <li>通过类级别共享的 HttpClient 将请求发送到本地 RapidOCR 服务（默认 http://localhost:8000/ocr）</li>
  *   <li>解析 RapidOCR 返回的 JSON 响应，提取识别文本和置信度</li>
  *   <li>将最终结果（SUCCESS + 识别内容 或 FAILED + 错误信息）写回 Redis</li>
  * </ol>
@@ -54,9 +55,14 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class OcrConsumer {
+    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+            .connectTimeout(Duration.ofSeconds(30))
+            .build();
+
     private final RabbitTemplate rabbitTemplate;
     private final OcrTaskStateService ocrTaskStateService;
     private final OcrConfigurationProperties ocrConfig;
+    private final MinioUtil minioUtil;
 
     /**
      * 监听 ocr.queue 队列并处理 OCR 任务。
@@ -65,7 +71,8 @@ public class OcrConsumer {
      * 其结构为 Map，包含以下字段：
      * <ul>
      *   <li><b>taskId</b>：任务唯一标识</li>
-     *   <li><b>imageBase64</b>：图片的 Base64 编码字符串</li>
+     *   <li><b>bucketName</b>：图片存储的 MinIO bucket 名称</li>
+     *   <li><b>objectName</b>：图片在 MinIO 中的对象路径</li>
      *   <li><b>fileName</b>：原始文件名</li>
      * </ul>
      *
@@ -74,11 +81,12 @@ public class OcrConsumer {
     @RabbitListener(queues = RabbitMQConfig.OCR_QUEUE)
     public void handleOcrTask(Map<String, Object> message) {
         String taskId = stringValue(message.get("taskId"));
-        String imageBase64 = stringValue(message.get("imageBase64"));
+        String bucketName = stringValue(message.get("bucketName"));
+        String objectName = stringValue(message.get("objectName"));
         String fileName = stringValue(message.get("fileName"));
         int retryCount = intValue(message.get("retryCount"));
 
-        if (taskId == null || taskId.isBlank() || imageBase64 == null || imageBase64.isBlank()) {
+        if (taskId == null || taskId.isBlank() || objectName == null || objectName.isBlank()) {
             log.error("收到结构异常的 OCR 消息，已投递到死信队列: {}", message);
             publishToDeadLetter(message, "OCR 消息缺少必要字段");
             return;
@@ -90,20 +98,17 @@ public class OcrConsumer {
         ocrTaskStateService.updateStatus(taskId, "PROCESSING", null, null, retryCount);
 
         try {
-            // 将 Base64 还原为原始图片字节数组
-            byte[] imageBytes = Base64.getDecoder().decode(imageBase64);
+            // 从 MinIO 读取图片
+            byte[] imageBytes;
+            try (InputStream is = minioUtil.getObject(bucketName, objectName)) {
+                imageBytes = is.readAllBytes();
+            }
 
             // 构建 multipart/form-data 请求体，用于模拟文件上传
-            // boundary 是 multipart 协议中的分隔符，用于标记各个表单字段的边界
             String boundary = "----OcrBoundary" + System.currentTimeMillis();
             byte[] multipartBody = buildMultipartBody(boundary, fileName, imageBytes);
 
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(Duration.ofSeconds(30))
-                    .build();
-
             // 向本地 RapidOCR 服务发送 POST 请求
-            // Content-Type 必须包含 boundary，服务端据此解析 multipart 请求体
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(ocrConfig.getServiceUrl()))
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
@@ -111,7 +116,7 @@ public class OcrConsumer {
                     .POST(HttpRequest.BodyPublishers.ofByteArray(multipartBody))
                     .build();
 
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
 
             // 根据 HTTP 状态码判断请求是否成功
             if (response.statusCode() != 200) {

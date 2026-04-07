@@ -18,12 +18,21 @@ public class OcrTaskMaintenanceScheduler {
     private final OcrTaskStateService ocrTaskStateService;
 
     /**
-     * 定时扫描 Redis 中的 OCR 任务，将超时未消费的 PENDING 任务标记为 FAILED。
+     * 定时扫描活跃任务集合（ocr:active-tasks），将超时未消费的 PENDING 任务标记为 FAILED。
+     * 同时清理任务记录已被 Redis TTL 回收但仍残留在集合中的过期条目。
      */
     @Scheduled(fixedDelayString = "${com.hollow.ocr.pending-timeout-scan-interval-millis:60000}")
     public void markTimedOutPendingTasks() {
         for (String taskId : ocrTaskStateService.findAllTaskIds()) {
             OcrTaskDto task = ocrTaskStateService.getTask(taskId);
+
+            // 自愈：如果任务记录已过期（被 Redis TTL 清理），则从活跃集合中移除
+            if (task == null) {
+                ocrTaskStateService.removeFromActiveSet(taskId);
+                log.info("OCR 任务记录已过期，已从活跃集合中清理: taskId={}", taskId);
+                continue;
+            }
+
             if (!ocrTaskStateService.isPendingTimedOut(task)) {
                 continue;
             }

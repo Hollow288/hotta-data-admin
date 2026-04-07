@@ -19,12 +19,13 @@ import java.util.stream.Collectors;
 public class OcrTaskStateService {
 
     public static final String OCR_RESULT_PREFIX = "ocr:result:";
+    public static final String OCR_ACTIVE_TASKS_KEY = "ocr:active-tasks";
 
     private final RedisUtil redisUtil;
     private final OcrConfigurationProperties ocrConfig;
 
     /**
-     * 创建新的 PENDING 任务记录并写入 Redis。
+     * 创建新的 PENDING 任务记录并写入 Redis，同时将 taskId 加入活跃任务集合（ocr:active-tasks）。
      */
     public OcrTaskDto createPendingTask(String taskId) {
         long now = System.currentTimeMillis();
@@ -36,6 +37,7 @@ public class OcrTaskStateService {
                 .updatedAt(now)
                 .build();
         persist(dto);
+        redisUtil.addToSet(OCR_ACTIVE_TASKS_KEY, taskId);
         return dto;
     }
 
@@ -51,7 +53,7 @@ public class OcrTaskStateService {
     }
 
     /**
-     * 更新任务状态并刷新 TTL。
+     * 更新任务状态并刷新 TTL。当任务进入终态（SUCCESS/FAILED）时，自动从活跃任务集合中移除。
      */
     public OcrTaskDto updateStatus(String taskId,
                                    String status,
@@ -69,6 +71,9 @@ public class OcrTaskStateService {
         dto.setCreatedAt(dto.getCreatedAt() != null ? dto.getCreatedAt() : now);
         dto.setUpdatedAt(now);
         persist(dto);
+        if ("SUCCESS".equals(status) || "FAILED".equals(status)) {
+            redisUtil.removeSetMembers(OCR_ACTIVE_TASKS_KEY, taskId);
+        }
         return dto;
     }
 
@@ -97,12 +102,24 @@ public class OcrTaskStateService {
     }
 
     /**
-     * 获取所有 OCR 任务 ID，用于定时扫描异常任务。
+     * 获取所有活跃（未终态）的 OCR 任务 ID，用于定时扫描异常任务。
+     * 通过 Redis Set（ocr:active-tasks）维护，避免使用 KEYS 命令阻塞 Redis。
      */
     public Set<String> findAllTaskIds() {
-        return redisUtil.keys(OCR_RESULT_PREFIX + "*").stream()
-                .map(key -> key.substring(OCR_RESULT_PREFIX.length()))
+        Set<Object> members = redisUtil.getSetMembers(OCR_ACTIVE_TASKS_KEY);
+        if (members == null || members.isEmpty()) {
+            return Set.of();
+        }
+        return members.stream()
+                .map(Object::toString)
                 .collect(Collectors.toSet());
+    }
+
+    /**
+     * 从活跃任务集合中移除指定任务 ID，用于清理已过期的残留记录。
+     */
+    public void removeFromActiveSet(String taskId) {
+        redisUtil.removeSetMembers(OCR_ACTIVE_TASKS_KEY, taskId);
     }
 
     private void persist(OcrTaskDto dto) {
