@@ -31,6 +31,17 @@ public class RedisUtil {
     }
 
     /**
+     * 按模式获取键集合。
+     *
+     * @param pattern Redis 键模式，例如 "ocr:result:*"
+     * @return 匹配到的键集合，未命中时返回空集合
+     */
+    public Set<String> keys(String pattern) {
+        Set<String> keys = redisTemplate.keys(pattern);
+        return keys == null ? Set.of() : keys;
+    }
+
+    /**
      * 删除指定键。
      *
      * @param key Redis 键

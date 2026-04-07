@@ -6,17 +6,21 @@ import com.hollow.build.config.OcrConfigurationProperties;
 import com.hollow.build.config.RabbitMQConfig;
 import com.hollow.build.dto.OcrTaskDto;
 import com.hollow.build.service.OcrService;
-import com.hollow.build.utils.RedisUtil;
-import com.alibaba.fastjson2.JSON;
+import com.hollow.build.service.OcrTaskStateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.amqp.core.ReturnedMessage;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.UUID;
 
 /**
@@ -31,9 +35,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class OcrServiceImpl implements OcrService {
-
-    /** Redis 中 OCR 任务结果的 key 前缀，完整 key 格式为 "ocr:result:{taskId}" */
-    private static final String OCR_RESULT_PREFIX = "ocr:result:";
+    private static final Set<String> ALLOWED_FILE_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".webp", ".bmp");
 
     /**
      * RabbitTemplate 是 Spring AMQP 提供的消息发送工具，
@@ -42,7 +44,7 @@ public class OcrServiceImpl implements OcrService {
      */
     private final RabbitTemplate rabbitTemplate;
 
-    private final RedisUtil redisUtil;
+    private final OcrTaskStateService ocrTaskStateService;
     private final OcrConfigurationProperties ocrConfig;
 
     /**
@@ -61,24 +63,33 @@ public class OcrServiceImpl implements OcrService {
      */
     @Override
     public ApiResponse<OcrTaskDto> submitTask(MultipartFile file) {
+        ApiResponse<OcrTaskDto> configurationError = validateConfiguration();
+        if (configurationError != null) {
+            return configurationError;
+        }
+
+        ApiResponse<OcrTaskDto> validationError = validateFile(file);
+        if (validationError != null) {
+            return validationError;
+        }
+
+        String taskId = null;
         try {
-            String taskId = UUID.randomUUID().toString();
+            taskId = UUID.randomUUID().toString();
 
             // 将图片转为 Base64 字符串，使其可以作为 JSON 消息体的一部分通过 RabbitMQ 传输
             String base64Image = Base64.getEncoder().encodeToString(file.getBytes());
 
             // 构建发送到 RabbitMQ 的消息体
-            Map<String, String> message = new HashMap<>();
+            Map<String, Object> message = new HashMap<>();
             message.put("taskId", taskId);
             message.put("imageBase64", base64Image);
             message.put("fileName", file.getOriginalFilename());
+            message.put("retryCount", 0);
 
             // 在 Redis 中创建初始任务记录，状态为 PENDING，表示任务已提交但尚未被消费者处理
-            OcrTaskDto pending = OcrTaskDto.builder()
-                    .taskId(taskId)
-                    .status("PENDING")
-                    .build();
-            redisUtil.set(OCR_RESULT_PREFIX + taskId, JSON.toJSONString(pending), ocrConfig.getResultTtl());
+            OcrTaskDto pending = ocrTaskStateService.createPendingTask(taskId);
+            CorrelationData correlationData = new CorrelationData(taskId);
 
             // 将消息发送到 RabbitMQ：
             // 参数1: exchange — 交换机名称（ocr.exchange），负责根据路由键分发消息
@@ -87,18 +98,23 @@ public class OcrServiceImpl implements OcrService {
             rabbitTemplate.convertAndSend(
                     RabbitMQConfig.OCR_EXCHANGE,
                     RabbitMQConfig.OCR_ROUTING_KEY,
-                    message
+                    message,
+                    correlationData
             );
+            waitForPublishConfirm(correlationData);
 
             log.info("OCR 任务已提交: taskId={}, fileName={}", taskId, file.getOriginalFilename());
 
             return ApiResponse.success(pending);
 
         } catch (Exception e) {
+            if (taskId != null) {
+                ocrTaskStateService.updateStatus(taskId, "FAILED", null, "提交 OCR 任务失败: " + safeMessage(e), 0);
+            }
             log.error("提交 OCR 任务失败", e);
             return new ApiResponse<>(
                     GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
-                    "提交 OCR 任务失败: " + e.getMessage(),
+                    "提交 OCR 任务失败: " + safeMessage(e),
                     null
             );
         }
@@ -113,8 +129,8 @@ public class OcrServiceImpl implements OcrService {
      */
     @Override
     public ApiResponse<OcrTaskDto> getResult(String taskId) {
-        Object resultJson = redisUtil.get(OCR_RESULT_PREFIX + taskId);
-        if (resultJson == null) {
+        OcrTaskDto result = ocrTaskStateService.getTask(taskId);
+        if (result == null) {
             return new ApiResponse<>(
                     GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
                     "任务不存在或已过期",
@@ -122,7 +138,95 @@ public class OcrServiceImpl implements OcrService {
             );
         }
 
-        OcrTaskDto result = JSON.parseObject(resultJson.toString(), OcrTaskDto.class);
+        if (ocrTaskStateService.isPendingTimedOut(result)) {
+            result = ocrTaskStateService.markPendingTimeout(taskId);
+        }
+
         return ApiResponse.success(result);
+    }
+
+    private ApiResponse<OcrTaskDto> validateConfiguration() {
+        if (ocrConfig.getServiceUrl() == null || ocrConfig.getServiceUrl().isBlank()) {
+            return new ApiResponse<>(
+                    GlobalErrorCodeConstants.ERROR_CONFIGURATION.getCode(),
+                    "OCR 服务地址未配置",
+                    null
+            );
+        }
+        return null;
+    }
+
+    private ApiResponse<OcrTaskDto> validateFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            return new ApiResponse<>(
+                    GlobalErrorCodeConstants.BAD_REQUEST.getCode(),
+                    "请上传非空图片文件",
+                    null
+            );
+        }
+
+        if (file.getSize() > ocrConfig.getMaxFileSizeBytes()) {
+            return new ApiResponse<>(
+                    GlobalErrorCodeConstants.BAD_REQUEST.getCode(),
+                    "OCR 图片不能超过 " + formatSize(ocrConfig.getMaxFileSizeBytes()),
+                    null
+            );
+        }
+
+        if (!isAllowedFileType(file)) {
+            return new ApiResponse<>(
+                    GlobalErrorCodeConstants.BAD_REQUEST.getCode(),
+                    "仅支持 JPG、PNG、WEBP、BMP 图片",
+                    null
+            );
+        }
+
+        return null;
+    }
+
+    private boolean isAllowedFileType(MultipartFile file) {
+        String contentType = file.getContentType();
+        if (contentType != null) {
+            String normalizedType = contentType.toLowerCase(Locale.ROOT);
+            if (ocrConfig.getAllowedContentTypes().stream()
+                    .map(type -> type.toLowerCase(Locale.ROOT))
+                    .anyMatch(normalizedType::equals)) {
+                return true;
+            }
+        }
+
+        String filename = file.getOriginalFilename();
+        if (filename == null) {
+            return false;
+        }
+
+        String lowerName = filename.toLowerCase(Locale.ROOT);
+        return ALLOWED_FILE_EXTENSIONS.stream().anyMatch(lowerName::endsWith);
+    }
+
+    private void waitForPublishConfirm(CorrelationData correlationData) throws Exception {
+        CorrelationData.Confirm confirm = correlationData.getFuture()
+                .get(ocrConfig.getSubmitConfirmTimeoutMillis(), TimeUnit.MILLISECONDS);
+        if (!confirm.isAck()) {
+            throw new IllegalStateException("RabbitMQ 未确认消息: " + safeMessage(confirm.getReason()));
+        }
+
+        ReturnedMessage returned = correlationData.getReturned();
+        if (returned != null) {
+            throw new IllegalStateException("RabbitMQ 路由失败: " + returned.getReplyText());
+        }
+    }
+
+    private String formatSize(long bytes) {
+        return String.format(Locale.ROOT, "%.1fMB", bytes / 1024.0 / 1024.0);
+    }
+
+    private String safeMessage(Object value) {
+        if (value == null) {
+            return "未知错误";
+        }
+
+        String text = value.toString();
+        return text == null || text.isBlank() ? "未知错误" : text;
     }
 }

@@ -1,21 +1,25 @@
 package com.hollow.build.mq;
 
 import com.hollow.build.config.OcrConfigurationProperties;
+import com.hollow.build.config.RabbitMQConfig;
 import com.hollow.build.dto.OcrTaskDto;
-import com.hollow.build.utils.RedisUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
+import com.hollow.build.service.OcrTaskStateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -50,11 +54,8 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class OcrConsumer {
-
-    /** Redis key 前缀，与 OcrServiceImpl 中保持一致 */
-    private static final String OCR_RESULT_PREFIX = "ocr:result:";
-
-    private final RedisUtil redisUtil;
+    private final RabbitTemplate rabbitTemplate;
+    private final OcrTaskStateService ocrTaskStateService;
     private final OcrConfigurationProperties ocrConfig;
 
     /**
@@ -70,16 +71,23 @@ public class OcrConsumer {
      *
      * @param message 从 RabbitMQ 队列中消费到的消息，由生产者 OcrServiceImpl 发送
      */
-    @RabbitListener(queues = "ocr.queue")
-    public void handleOcrTask(Map<String, String> message) {
-        String taskId = message.get("taskId");
-        String imageBase64 = message.get("imageBase64");
-        String fileName = message.get("fileName");
+    @RabbitListener(queues = RabbitMQConfig.OCR_QUEUE)
+    public void handleOcrTask(Map<String, Object> message) {
+        String taskId = stringValue(message.get("taskId"));
+        String imageBase64 = stringValue(message.get("imageBase64"));
+        String fileName = stringValue(message.get("fileName"));
+        int retryCount = intValue(message.get("retryCount"));
 
-        log.info("开始处理 OCR 任务: taskId={}, fileName={}", taskId, fileName);
+        if (taskId == null || taskId.isBlank() || imageBase64 == null || imageBase64.isBlank()) {
+            log.error("收到结构异常的 OCR 消息，已投递到死信队列: {}", message);
+            publishToDeadLetter(message, "OCR 消息缺少必要字段");
+            return;
+        }
+
+        log.info("开始处理 OCR 任务: taskId={}, fileName={}, retryCount={}", taskId, fileName, retryCount);
 
         // 更新 Redis 中任务状态为 PROCESSING，表示消费者已开始处理
-        updateStatus(taskId, "PROCESSING", null, null);
+        ocrTaskStateService.updateStatus(taskId, "PROCESSING", null, null, retryCount);
 
         try {
             // 将 Base64 还原为原始图片字节数组
@@ -106,65 +114,91 @@ public class OcrConsumer {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             // 根据 HTTP 状态码判断请求是否成功
-            if (response.statusCode() == 200) {
-                // RapidOCR 返回的 JSON 结构示例：
-                // {
-                //   "code": 200,
-                //   "data": [
-                //     { "text": "识别到的文字", "confidence": 0.95 },
-                //     { "text": "第二行文字", "confidence": 0.88 }
-                //   ],
-                //   "elapse": 1.23
-                // }
-                Map<String, Object> responseMap = JSON.parseObject(response.body(), new TypeReference<>() {});
-                List<Map<String, Object>> dataList = (List<Map<String, Object>>) responseMap.get("data");
-
-                // 将 RapidOCR 的原始响应转换为 OcrResultItem 列表
-                List<OcrTaskDto.OcrResultItem> results = List.of();
-                if (dataList != null) {
-                    results = dataList.stream()
-                            .map(item -> new OcrTaskDto.OcrResultItem(
-                                    (String) item.get("text"),
-                                    ((Number) item.get("confidence")).doubleValue()
-                            ))
-                            .toList();
-                }
-
-                // 识别成功，将结果写入 Redis，前端下次轮询即可获取
-                updateStatus(taskId, "SUCCESS", results, null);
-                log.info("OCR 任务完成: taskId={}, 识别到 {} 条文本", taskId, results.size());
-
-            } else {
-                String errorMsg = "RapidOCR 返回异常状态码: " + response.statusCode();
-                updateStatus(taskId, "FAILED", null, errorMsg);
-                log.error("OCR 任务失败: taskId={}, {}", taskId, errorMsg);
+            if (response.statusCode() != 200) {
+                throw new IllegalStateException("RapidOCR 返回异常状态码: " + response.statusCode());
             }
 
+            // RapidOCR 返回的 JSON 结构示例：
+            // {
+            //   "code": 200,
+            //   "data": [
+            //     { "text": "识别到的文字", "confidence": 0.95 },
+            //     { "text": "第二行文字", "confidence": 0.88 }
+            //   ],
+            //   "elapse": 1.23
+            // }
+            Map<String, Object> responseMap = JSON.parseObject(response.body(), new TypeReference<>() {});
+            List<Map<String, Object>> dataList = (List<Map<String, Object>>) responseMap.get("data");
+
+            // 将 RapidOCR 的原始响应转换为 OcrResultItem 列表
+            List<OcrTaskDto.OcrResultItem> results = List.of();
+            if (dataList != null) {
+                results = dataList.stream()
+                        .map(item -> new OcrTaskDto.OcrResultItem(
+                                stringValue(item.get("text")),
+                                numberValue(item.get("confidence"))
+                        ))
+                        .toList();
+            }
+
+            // 识别成功，将结果写入 Redis，前端下次轮询即可获取
+            ocrTaskStateService.updateStatus(taskId, "SUCCESS", results, null, retryCount);
+            log.info("OCR 任务完成: taskId={}, 识别到 {} 条文本", taskId, results.size());
+
         } catch (Exception e) {
-            // 任何异常（网络超时、OCR 服务未启动、JSON 解析失败等）都标记为 FAILED
-            updateStatus(taskId, "FAILED", null, e.getMessage());
-            log.error("OCR 任务异常: taskId={}", taskId, e);
+            handleFailure(message, taskId, retryCount, e);
         }
     }
 
     /**
-     * 更新 Redis 中指定任务的状态和结果。
-     * <p>
-     * 每次状态变更都会重新设置过期时间，确保从最后一次更新开始计算 TTL。
-     *
-     * @param taskId   任务ID
-     * @param status   新状态（PENDING / PROCESSING / SUCCESS / FAILED）
-     * @param results  识别结果列表，仅在 SUCCESS 时有值
-     * @param errorMsg 错误信息，仅在 FAILED 时有值
+     * 根据重试配置决定将失败任务投递到 retry queue，还是最终写入 FAILED 并进入 dead queue。
      */
-    private void updateStatus(String taskId, String status, List<OcrTaskDto.OcrResultItem> results, String errorMsg) {
-        OcrTaskDto dto = OcrTaskDto.builder()
-                .taskId(taskId)
-                .status(status)
-                .results(results)
-                .errorMsg(errorMsg)
-                .build();
-        redisUtil.set(OCR_RESULT_PREFIX + taskId, JSON.toJSONString(dto), ocrConfig.getResultTtl());
+    private void handleFailure(Map<String, Object> message, String taskId, int retryCount, Exception e) {
+        String errorMsg = safeMessage(e);
+        if (retryCount < ocrConfig.getMaxRetryCount()) {
+            int nextRetryCount = retryCount + 1;
+            Map<String, Object> retryMessage = new HashMap<>(message);
+            retryMessage.put("retryCount", nextRetryCount);
+            retryMessage.put("lastError", errorMsg);
+
+            try {
+                rabbitTemplate.convertAndSend(
+                        RabbitMQConfig.OCR_RETRY_EXCHANGE,
+                        RabbitMQConfig.OCR_RETRY_ROUTING_KEY,
+                        retryMessage
+                );
+                ocrTaskStateService.markPendingForRetry(
+                        taskId,
+                        nextRetryCount,
+                        "OCR 处理失败，已进入第 " + nextRetryCount + " 次重试队列"
+                );
+                log.warn("OCR 任务处理失败，已进入重试队列: taskId={}, retryCount={}, error={}",
+                        taskId, nextRetryCount, errorMsg);
+                return;
+            } catch (Exception retryPublishException) {
+                errorMsg = "OCR 重试入队失败: " + safeMessage(retryPublishException);
+                log.error("OCR 任务重试入队失败: taskId={}", taskId, retryPublishException);
+            }
+        }
+
+        ocrTaskStateService.updateStatus(taskId, "FAILED", null, errorMsg, retryCount);
+        publishToDeadLetter(message, errorMsg);
+        log.error("OCR 任务最终失败: taskId={}, retryCount={}, error={}", taskId, retryCount, errorMsg, e);
+    }
+
+    private void publishToDeadLetter(Map<String, Object> originalMessage, String errorMsg) {
+        try {
+            Map<String, Object> deadMessage = new HashMap<>(originalMessage);
+            deadMessage.put("lastError", errorMsg);
+            deadMessage.put("failedAt", System.currentTimeMillis());
+            rabbitTemplate.convertAndSend(
+                    RabbitMQConfig.OCR_DEAD_EXCHANGE,
+                    RabbitMQConfig.OCR_DEAD_ROUTING_KEY,
+                    deadMessage
+            );
+        } catch (Exception deadLetterException) {
+            log.error("OCR 死信投递失败: {}", errorMsg, deadLetterException);
+        }
     }
 
     /**
@@ -202,9 +236,9 @@ public class OcrConsumer {
         header.append("Content-Type: application/octet-stream").append(lineEnd);
         header.append(lineEnd);
 
-        byte[] headerBytes = header.toString().getBytes();
+        byte[] headerBytes = header.toString().getBytes(StandardCharsets.UTF_8);
         // 构建 multipart 尾部：换行 + 结束分隔符（以 -- 结尾表示整个 multipart 结束）
-        byte[] footerBytes = (lineEnd + prefix + boundary + prefix + lineEnd).getBytes();
+        byte[] footerBytes = (lineEnd + prefix + boundary + prefix + lineEnd).getBytes(StandardCharsets.UTF_8);
 
         // 将头部、文件内容、尾部拼接为完整的请求体
         byte[] body = new byte[headerBytes.length + fileBytes.length + footerBytes.length];
@@ -213,5 +247,37 @@ public class OcrConsumer {
         System.arraycopy(footerBytes, 0, body, headerBytes.length + fileBytes.length, footerBytes.length);
 
         return body;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private int intValue(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Integer.parseInt(text);
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
+    private double numberValue(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        return 0.0D;
+    }
+
+    private String safeMessage(Exception exception) {
+        if (exception == null || exception.getMessage() == null || exception.getMessage().isBlank()) {
+            return "未知错误";
+        }
+        return exception.getMessage();
     }
 }

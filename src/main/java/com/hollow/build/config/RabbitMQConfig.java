@@ -6,8 +6,12 @@ import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * RabbitMQ 配置类，声明 OCR 任务所需的交换机、队列和绑定关系。
@@ -45,6 +49,24 @@ public class RabbitMQConfig {
     /** 路由键：生产者发送消息时指定此键，交换机据此将消息路由到 OCR 队列 */
     public static final String OCR_ROUTING_KEY = "ocr.task";
 
+    /** 重试交换机名称：消费失败的任务先进入重试队列等待 TTL 到期 */
+    public static final String OCR_RETRY_EXCHANGE = "ocr.retry.exchange";
+
+    /** 重试队列名称：持久化保存待重试的任务 */
+    public static final String OCR_RETRY_QUEUE = "ocr.retry.queue";
+
+    /** 重试路由键 */
+    public static final String OCR_RETRY_ROUTING_KEY = "ocr.retry";
+
+    /** 死信交换机名称：超过最大重试次数或消息异常的任务进入死信队列 */
+    public static final String OCR_DEAD_EXCHANGE = "ocr.dead.exchange";
+
+    /** 死信队列名称 */
+    public static final String OCR_DEAD_QUEUE = "ocr.dead.queue";
+
+    /** 死信路由键 */
+    public static final String OCR_DEAD_ROUTING_KEY = "ocr.dead";
+
     /**
      * 声明 Direct 类型的交换机。
      * <p>
@@ -67,7 +89,10 @@ public class RabbitMQConfig {
      */
     @Bean
     public Queue ocrQueue() {
-        return new Queue(OCR_QUEUE, true);
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("x-dead-letter-exchange", OCR_DEAD_EXCHANGE);
+        arguments.put("x-dead-letter-routing-key", OCR_DEAD_ROUTING_KEY);
+        return new Queue(OCR_QUEUE, true, false, false, arguments);
     }
 
     /**
@@ -77,8 +102,66 @@ public class RabbitMQConfig {
      * 交换机会将该消息投递到 ocr.queue 队列中。
      */
     @Bean
-    public Binding ocrBinding(Queue ocrQueue, DirectExchange ocrExchange) {
+    public Binding ocrBinding(@Qualifier("ocrQueue") Queue ocrQueue,
+                              @Qualifier("ocrExchange") DirectExchange ocrExchange) {
         return BindingBuilder.bind(ocrQueue).to(ocrExchange).with(OCR_ROUTING_KEY);
+    }
+
+    /**
+     * 声明重试交换机。
+     */
+    @Bean
+    public DirectExchange ocrRetryExchange() {
+        return new DirectExchange(OCR_RETRY_EXCHANGE);
+    }
+
+    /**
+     * 声明重试队列。
+     * <p>
+     * 消费失败的任务进入该队列后会等待 TTL 到期，
+     * 然后自动死信回主交换机并重新投递到 OCR 主队列。
+     */
+    @Bean
+    public Queue ocrRetryQueue(OcrConfigurationProperties ocrConfig) {
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("x-message-ttl", ocrConfig.getRetryDelayMillis());
+        arguments.put("x-dead-letter-exchange", OCR_EXCHANGE);
+        arguments.put("x-dead-letter-routing-key", OCR_ROUTING_KEY);
+        return new Queue(OCR_RETRY_QUEUE, true, false, false, arguments);
+    }
+
+    /**
+     * 将重试队列绑定到重试交换机。
+     */
+    @Bean
+    public Binding ocrRetryBinding(@Qualifier("ocrRetryQueue") Queue ocrRetryQueue,
+                                   @Qualifier("ocrRetryExchange") DirectExchange ocrRetryExchange) {
+        return BindingBuilder.bind(ocrRetryQueue).to(ocrRetryExchange).with(OCR_RETRY_ROUTING_KEY);
+    }
+
+    /**
+     * 声明死信交换机。
+     */
+    @Bean
+    public DirectExchange ocrDeadExchange() {
+        return new DirectExchange(OCR_DEAD_EXCHANGE);
+    }
+
+    /**
+     * 声明死信队列，用于保存超过最大重试次数或消息结构异常的任务。
+     */
+    @Bean
+    public Queue ocrDeadQueue() {
+        return new Queue(OCR_DEAD_QUEUE, true);
+    }
+
+    /**
+     * 将死信队列绑定到死信交换机。
+     */
+    @Bean
+    public Binding ocrDeadBinding(@Qualifier("ocrDeadQueue") Queue ocrDeadQueue,
+                                  @Qualifier("ocrDeadExchange") DirectExchange ocrDeadExchange) {
+        return BindingBuilder.bind(ocrDeadQueue).to(ocrDeadExchange).with(OCR_DEAD_ROUTING_KEY);
     }
 
     /**

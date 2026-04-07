@@ -19,6 +19,21 @@ spring:
       uri: ${MONGODB_URI:}
   cache:
     type: redis
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        prefetch: 1
+        concurrency: 1
+        max-concurrency: 2
+        default-requeue-rejected: false
 
 server:
   port: 5777
@@ -62,3 +77,18 @@ com:
       uri: ${AI_URI}
       default-prompt: ${AI_DEFAULTPROMPT}
       proxy-address: ${AI_PROXYADDRESS}
+    ocr:
+      service-url: ${OCR_SERVICE_URL:http://127.0.0.1:8000/ocr}
+      result-ttl: ${OCR_RESULT_TTL:3600}
+      max-file-size-bytes: ${OCR_MAX_FILE_SIZE_BYTES:5242880}
+      submit-confirm-timeout-millis: ${OCR_SUBMIT_CONFIRM_TIMEOUT_MILLIS:5000}
+      max-retry-count: ${OCR_MAX_RETRY_COUNT:3}
+      retry-delay-millis: ${OCR_RETRY_DELAY_MILLIS:15000}
+      pending-timeout-seconds: ${OCR_PENDING_TIMEOUT_SECONDS:300}
+      pending-timeout-scan-interval-millis: ${OCR_PENDING_TIMEOUT_SCAN_INTERVAL_MILLIS:60000}
+      allowed-content-types:
+        - image/jpeg
+        - image/jpg
+        - image/png
+        - image/webp
+        - image/bmp

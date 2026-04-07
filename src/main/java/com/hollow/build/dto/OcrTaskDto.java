@@ -44,6 +44,10 @@ public class OcrTaskDto implements Serializable {
     @Schema(description = "任务状态: PENDING / PROCESSING / SUCCESS / FAILED")
     private String status;
 
+    /** 已进入重试队列的次数，首次提交为 0 */
+    @Schema(description = "当前已重试次数")
+    private Integer retryCount;
+
     /** 识别结果列表，仅在 status 为 SUCCESS 时有值 */
     @Schema(description = "识别结果列表")
     private List<OcrResultItem> results;
@@ -51,6 +55,14 @@ public class OcrTaskDto implements Serializable {
     /** 错误信息，仅在 status 为 FAILED 时有值 */
     @Schema(description = "错误信息")
     private String errorMsg;
+
+    /** 任务创建时间戳（毫秒） */
+    @Schema(description = "任务创建时间戳（毫秒）")
+    private Long createdAt;
+
+    /** 任务最后更新时间戳（毫秒） */
+    @Schema(description = "任务最后更新时间戳（毫秒）")
+    private Long updatedAt;
 
     /**
      * 单条 OCR 识别结果，对应 RapidOCR 返回的 data 数组中的一个元素。
