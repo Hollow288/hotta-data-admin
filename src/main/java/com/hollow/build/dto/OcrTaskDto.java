@@ -20,6 +20,13 @@ import java.util.List;
  * </ul>
  *
  * <p>状态流转：PENDING → PROCESSING → SUCCESS / FAILED
+ *
+ * <p>识别结果按 {@link #mode} 区分承载字段：
+ * <ul>
+ *   <li>{@code detail}：使用 {@link #results}（含坐标、置信度、页码）</li>
+ *   <li>{@code list}：使用 {@link #textList}（仅文本数组）</li>
+ *   <li>{@code text}：使用 {@link #fullText}（拼接后的完整字符串）</li>
+ * </ul>
  */
 @Data
 @Builder
@@ -36,8 +43,8 @@ public class OcrTaskDto implements Serializable {
      * 任务当前状态：
      * <ul>
      *   <li>PENDING — 已提交到 MQ 队列，排队等待处理</li>
-     *   <li>PROCESSING — 消费者已取出消息，正在调用 RapidOCR 识别</li>
-     *   <li>SUCCESS — 识别完成，results 字段包含结果</li>
+     *   <li>PROCESSING — 消费者已取出消息，正在调用远程 OCR 识别</li>
+     *   <li>SUCCESS — 识别完成，结果字段（results/textList/fullText 之一）有值</li>
      *   <li>FAILED — 识别失败，errorMsg 字段包含原因</li>
      * </ul>
      */
@@ -48,9 +55,29 @@ public class OcrTaskDto implements Serializable {
     @Schema(description = "当前已重试次数")
     private Integer retryCount;
 
-    /** 识别结果列表，仅在 status 为 SUCCESS 时有值 */
-    @Schema(description = "识别结果列表")
+    /** 本任务使用的返回模式：{@code detail} / {@code list} / {@code text} */
+    @Schema(description = "返回模式: detail / list / text")
+    private String mode;
+
+    /** detail 模式下的识别结果列表 */
+    @Schema(description = "识别结果列表（mode=detail 时使用）")
     private List<OcrResultItem> results;
+
+    /** list 模式下的纯文本数组 */
+    @Schema(description = "识别文本列表（mode=list 时使用）")
+    private List<String> textList;
+
+    /** text 模式下拼接后的完整字符串 */
+    @Schema(description = "拼接后的完整识别文本（mode=text 时使用）")
+    private String fullText;
+
+    /** PDF 总页数；图片识别时为 null */
+    @Schema(description = "PDF 总页数；图片为 null")
+    private Integer pages;
+
+    /** 远程 OCR 服务返回的耗时（秒） */
+    @Schema(description = "远程 OCR 总耗时（秒）")
+    private Double elapseSeconds;
 
     /** 错误信息，仅在 status 为 FAILED 时有值 */
     @Schema(description = "错误信息")
@@ -65,9 +92,9 @@ public class OcrTaskDto implements Serializable {
     private Long updatedAt;
 
     /**
-     * 单条 OCR 识别结果，对应 RapidOCR 返回的 data 数组中的一个元素。
+     * 单条 OCR 识别结果，对应远程服务 {@code mode=detail} 返回的 data 数组中的一个元素。
      * <p>
-     * RapidOCR 原始响应格式：{@code { "text": "识别到的文字", "confidence": 0.95 }}
+     * 远程响应格式：{@code { "text": "...", "confidence": 0.95, "bbox": [[..],[..],[..],[..]], "page": 1 }}
      */
     @Data
     @NoArgsConstructor
@@ -81,5 +108,13 @@ public class OcrTaskDto implements Serializable {
         /** 识别置信度，范围 0~1，值越大表示识别结果越可信 */
         @Schema(description = "置信度")
         private Double confidence;
+
+        /** 文本框 4 个顶点坐标，顺序为左上、右上、右下、左下；可能为 null */
+        @Schema(description = "文本框 4 顶点坐标")
+        private List<List<Double>> bbox;
+
+        /** PDF 页码（1-based）；图片识别时为 null */
+        @Schema(description = "页码（PDF 1-based；图片为 null）")
+        private Integer page;
     }
 }

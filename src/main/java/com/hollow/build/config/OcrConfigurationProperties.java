@@ -16,9 +16,11 @@ import java.util.List;
  * com:
  *   hollow:
  *     ocr:
- *       service-url: http://localhost:8000/ocr   # 本地 RapidOCR 服务的接口地址
+ *       service-url: http://127.0.0.1:7634/ocr    # 远程 OCR 服务的 multipart 上传端点
+ *       api-key: my_default_secret                # 远程服务 X-API-KEY 鉴权值
+ *       default-mode: detail                      # 默认返回模式：detail / list / text
  *       result-ttl: 3600                          # OCR 结果在 Redis 中的保留时间（秒）
- *       max-file-size-bytes: 5242880              # OCR 接口允许的最大文件大小（5MB）
+ *       max-file-size-bytes: 52428800             # OCR 接口允许的最大文件大小（50MB）
  *       max-retry-count: 3                        # OCR 调用失败时最多重试 3 次
  *       retry-delay-millis: 15000                 # 每次重试前等待 15 秒
  * </pre>
@@ -30,12 +32,29 @@ import java.util.List;
 public class OcrConfigurationProperties {
 
     /**
-     * RapidOCR 服务的接口地址。
+     * 远程 OCR 服务的 multipart 上传端点（对应 README 中的 {@code POST /ocr}）。
      * <p>
-     * 对应 RapidOCR FastAPI 服务中 {@code @app.post("/ocr")} 定义的端点，
-     * 消费者会向此地址发送 multipart/form-data 格式的 POST 请求上传图片。
+     * 消费者会向此地址发送 multipart/form-data 请求上传文件，并通过 query string 附加
+     * {@code mode}、{@code min_confidence} 等参数。
      */
-    private String serviceUrl = "http://127.0.0.1:8000/ocr";
+    private String serviceUrl = "http://127.0.0.1:7634/ocr";
+
+    /**
+     * 远程 OCR 服务的 API Key，会以 {@code X-API-KEY} 请求头形式带上。
+     * 未配置时跳过该请求头（适合鉴权关闭的开发环境）。
+     */
+    private String apiKey;
+
+    /**
+     * 默认返回模式：{@code detail} / {@code list} / {@code text}。
+     * 提交任务时若未显式指定 mode，则使用该值。
+     */
+    private String defaultMode = "detail";
+
+    /**
+     * 默认置信度阈值（0~1）。null 表示不过滤；提交任务时若未显式传入则使用该值。
+     */
+    private Double defaultMinConfidence;
 
     /**
      * OCR 任务结果在 Redis 中的过期时间，单位为秒，默认 3600 秒（1小时）。
@@ -51,19 +70,23 @@ public class OcrConfigurationProperties {
 
     /**
      * OCR 上传允许的最大文件大小，单位为字节。
-     * 默认 5MB，防止上传过大图片占用过多 MinIO 存储和 OCR 处理资源。
+     * 默认 50MB，与远程服务默认 {@code UPLOAD_MAX_BYTES} 对齐。
      */
-    private long maxFileSizeBytes = 5L * 1024 * 1024;
+    private long maxFileSizeBytes = 50L * 1024 * 1024;
 
     /**
      * 允许提交到 OCR 接口的 MIME 类型白名单。
+     * 远程服务支持 JPG / PNG / BMP / WebP / HEIC / HEIF / PDF。
      */
     private List<String> allowedContentTypes = new ArrayList<>(List.of(
             "image/jpeg",
             "image/jpg",
             "image/png",
             "image/webp",
-            "image/bmp"
+            "image/bmp",
+            "image/heic",
+            "image/heif",
+            "application/pdf"
     ));
 
     /**
@@ -99,4 +122,11 @@ public class OcrConfigurationProperties {
      * 扫描超时 PENDING 任务的间隔，单位为毫秒。
      */
     private long pendingTimeoutScanIntervalMillis = 60000;
+
+    /**
+     * 每个客户端 IP 每天允许调用 OCR 提交接口的最大次数。
+     * <p>
+     * 仅限制 {@code POST /api/v1/ocr/submit}；查询结果接口不受此限制。
+     */
+    private int dailyIpLimit = 20;
 }

@@ -28,11 +28,19 @@ public class OcrTaskStateService {
      * 创建新的 PENDING 任务记录并写入 Redis，同时将 taskId 加入活跃任务集合（ocr:active-tasks）。
      */
     public OcrTaskDto createPendingTask(String taskId) {
+        return createPendingTask(taskId, null);
+    }
+
+    /**
+     * 创建新的 PENDING 任务记录，并保留用户提交时选择的返回模式，便于消费者按 mode 调用远程服务。
+     */
+    public OcrTaskDto createPendingTask(String taskId, String mode) {
         long now = System.currentTimeMillis();
         OcrTaskDto dto = OcrTaskDto.builder()
                 .taskId(taskId)
                 .status("PENDING")
                 .retryCount(0)
+                .mode(mode)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
@@ -74,6 +82,38 @@ public class OcrTaskStateService {
         if ("SUCCESS".equals(status) || "FAILED".equals(status)) {
             redisUtil.removeSetMembers(OCR_ACTIVE_TASKS_KEY, taskId);
         }
+        return dto;
+    }
+
+    /**
+     * 写入识别成功的最终结果。根据远程服务返回的 mode 选择落库到 results / textList / fullText 之一，
+     * 并附带 pages、elapseSeconds 等元数据。状态固定为 SUCCESS，会从活跃任务集合中移除。
+     */
+    public OcrTaskDto updateSuccess(String taskId,
+                                    String mode,
+                                    List<OcrTaskDto.OcrResultItem> results,
+                                    List<String> textList,
+                                    String fullText,
+                                    Integer pages,
+                                    Double elapseSeconds,
+                                    Integer retryCount) {
+        long now = System.currentTimeMillis();
+        OcrTaskDto current = getTask(taskId);
+        OcrTaskDto dto = current != null ? current : new OcrTaskDto();
+        dto.setTaskId(taskId);
+        dto.setStatus("SUCCESS");
+        dto.setMode(mode);
+        dto.setResults(results);
+        dto.setTextList(textList);
+        dto.setFullText(fullText);
+        dto.setPages(pages);
+        dto.setElapseSeconds(elapseSeconds);
+        dto.setErrorMsg(null);
+        dto.setRetryCount(retryCount != null ? retryCount : (dto.getRetryCount() != null ? dto.getRetryCount() : 0));
+        dto.setCreatedAt(dto.getCreatedAt() != null ? dto.getCreatedAt() : now);
+        dto.setUpdatedAt(now);
+        persist(dto);
+        redisUtil.removeSetMembers(OCR_ACTIVE_TASKS_KEY, taskId);
         return dto;
     }
 

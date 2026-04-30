@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -36,7 +38,15 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class OcrServiceImpl implements OcrService {
-    private static final Set<String> ALLOWED_FILE_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".webp", ".bmp");
+    private static final Set<String> ALLOWED_FILE_EXTENSIONS = Set.of(
+            ".jpg", ".jpeg", ".png", ".webp", ".bmp", ".heic", ".heif", ".pdf"
+    );
+
+    /** 远程 OCR 服务支持的返回模式 */
+    private static final Set<String> ALLOWED_MODES = Set.of("detail", "list", "text");
+
+    private static final DateTimeFormatter OBJECT_MONTH_PATH_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy/MM");
 
     /**
      * RabbitTemplate 是 Spring AMQP 提供的消息发送工具，
@@ -65,7 +75,7 @@ public class OcrServiceImpl implements OcrService {
      * </ol>
      */
     @Override
-    public ApiResponse<OcrTaskDto> submitTask(MultipartFile file) {
+    public ApiResponse<OcrTaskDto> submitTask(MultipartFile file, String mode, Double minConfidence) {
         ApiResponse<OcrTaskDto> configurationError = validateConfiguration();
         if (configurationError != null) {
             return configurationError;
@@ -76,29 +86,53 @@ public class OcrServiceImpl implements OcrService {
             return validationError;
         }
 
+        String resolvedMode = resolveMode(mode);
+        if (resolvedMode == null) {
+            return new ApiResponse<>(
+                    GlobalErrorCodeConstants.BAD_REQUEST.getCode(),
+                    "mode 仅支持 detail / list / text",
+                    null
+            );
+        }
+
+        Double resolvedMinConfidence = resolveMinConfidence(minConfidence);
+        if (minConfidence != null && resolvedMinConfidence == null) {
+            return new ApiResponse<>(
+                    GlobalErrorCodeConstants.BAD_REQUEST.getCode(),
+                    "minConfidence 必须在 [0, 1] 之间",
+                    null
+            );
+        }
+
         String taskId = null;
         try {
             taskId = UUID.randomUUID().toString();
 
             // 将图片上传到 MinIO 临时存储，MQ 消息中只传对象路径，避免消息体过大
             String fileName = file.getOriginalFilename();
-            String objectName = "ocr/" + taskId + "/" + (fileName != null ? fileName : "image.png");
+            String monthPath = LocalDate.now().format(OBJECT_MONTH_PATH_FORMATTER);
+            String objectName = "ocr/" + monthPath + "/" + taskId + "/" + (fileName != null ? fileName : "image.png");
             String bucketName = ocrConfig.getMinioBucket();
             minioUtil.ensureBucketExists(bucketName);
             try (InputStream inputStream = file.getInputStream()) {
                 minioUtil.putObject(bucketName, objectName, inputStream);
             }
 
-            // 构建发送到 RabbitMQ 的消息体（只传路径，不传图片内容）
+            // 构建发送到 RabbitMQ 的消息体（只传路径与调用参数，不传文件内容）
             Map<String, Object> message = new HashMap<>();
             message.put("taskId", taskId);
             message.put("bucketName", bucketName);
             message.put("objectName", objectName);
             message.put("fileName", fileName);
+            message.put("contentType", file.getContentType());
+            message.put("mode", resolvedMode);
+            if (resolvedMinConfidence != null) {
+                message.put("minConfidence", resolvedMinConfidence);
+            }
             message.put("retryCount", 0);
 
             // 在 Redis 中创建初始任务记录，状态为 PENDING，表示任务已提交但尚未被消费者处理
-            OcrTaskDto pending = ocrTaskStateService.createPendingTask(taskId);
+            OcrTaskDto pending = ocrTaskStateService.createPendingTask(taskId, resolvedMode);
             CorrelationData correlationData = new CorrelationData(taskId);
 
             // 将消息发送到 RabbitMQ：
@@ -186,12 +220,38 @@ public class OcrServiceImpl implements OcrService {
         if (!isAllowedFileType(file)) {
             return new ApiResponse<>(
                     GlobalErrorCodeConstants.BAD_REQUEST.getCode(),
-                    "仅支持 JPG、PNG、WEBP、BMP 图片",
+                    "仅支持 JPG/PNG/WEBP/BMP/HEIC/HEIF 图片或 PDF 文件",
                     null
             );
         }
 
         return null;
+    }
+
+    /**
+     * 解析返回模式：传空时回落到配置默认；传非法值返回 null。
+     */
+    private String resolveMode(String mode) {
+        String candidate = (mode == null || mode.isBlank()) ? ocrConfig.getDefaultMode() : mode;
+        if (candidate == null || candidate.isBlank()) {
+            return "detail";
+        }
+        String normalized = candidate.toLowerCase(Locale.ROOT).trim();
+        return ALLOWED_MODES.contains(normalized) ? normalized : null;
+    }
+
+    /**
+     * 解析置信度阈值：传空时回落到配置默认；超出 [0,1] 时返回 null（由调用方区分）。
+     */
+    private Double resolveMinConfidence(Double minConfidence) {
+        Double candidate = minConfidence != null ? minConfidence : ocrConfig.getDefaultMinConfidence();
+        if (candidate == null) {
+            return null;
+        }
+        if (candidate < 0.0 || candidate > 1.0) {
+            return null;
+        }
+        return candidate;
     }
 
     private boolean isAllowedFileType(MultipartFile file) {
