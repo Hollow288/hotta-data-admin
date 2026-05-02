@@ -20,15 +20,23 @@ spring:
   cache:
     type: redis
   rabbitmq:
-    host: 127.0.0.1
-    port: 5672
-    username: guest
-    password: guest
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    publisher-confirm-type: correlated
+    virtual-host: ${RABBITMQ_VHOST:/}
+    publisher-returns: true
+    template:
+      mandatory: true
+    ssl:
+      enabled: true
     listener:
       simple:
         prefetch: 1
         concurrency: 1
         max-concurrency: 2
+        default-requeue-rejected: false
 
 server:
   port: 5777
@@ -87,3 +95,26 @@ com:
       proxy-address: ${AI_PROXY_ADDRESS}
       proxy-port: ${AI_PROXY_PORT}
       proxy-enabled: ${AI_PROXY_ENABLED}
+    ocr:
+      service-url: ${OCR_SERVICE_URL:http://127.0.0.1:7634/ocr}
+      api-key: ${OCR_API_KEY:}
+      default-mode: ${OCR_DEFAULT_MODE:detail}
+      default-min-confidence: ${OCR_DEFAULT_MIN_CONFIDENCE:}
+      result-ttl: ${OCR_RESULT_TTL:3600}
+      max-file-size-bytes: ${OCR_MAX_FILE_SIZE_BYTES:52428800}
+      submit-confirm-timeout-millis: ${OCR_SUBMIT_CONFIRM_TIMEOUT_MILLIS:5000}
+      max-retry-count: ${OCR_MAX_RETRY_COUNT:3}
+      retry-delay-millis: ${OCR_RETRY_DELAY_MILLIS:15000}
+      minio-bucket: ${OCR_MINIO_BUCKET:ocr-temp}
+      pending-timeout-seconds: ${OCR_PENDING_TIMEOUT_SECONDS:300}
+      pending-timeout-scan-interval-millis: ${OCR_PENDING_TIMEOUT_SCAN_INTERVAL_MILLIS:60000}
+      daily-ip-limit: ${OCR_DAILY_IP_LIMIT:20}
+      allowed-content-types:
+        - image/jpeg
+        - image/jpg
+        - image/png
+        - image/webp
+        - image/bmp
+        - image/heic
+        - image/heif
+        - application/pdf

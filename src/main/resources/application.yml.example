@@ -25,9 +25,12 @@ spring:
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
     publisher-confirm-type: correlated
+    virtual-host: ${RABBITMQ_VHOST:/}
     publisher-returns: true
     template:
       mandatory: true
+    ssl:
+      enabled: true
     listener:
       simple:
         prefetch: 1
@@ -71,24 +74,47 @@ com:
       endpoint: ${MINIO_ENDPOINT:}
       access-key: ${MINIO_ACCESSKEY:}
       secret-key: ${MINIO_SECRETKEY:}
+    google-drive:
+      credentials-path: ./config/client_secret.json
+      tokens-dir: ./config/tokens
+      watch-dir: ./videos
+      target-folder: video
+      delete-after-upload: true
+      cron: "0 */5 * * * ?"
     ai:
-      api-key: ${AI_APIKEY}
-      model: ${AI_MODEL}
-      uri: ${AI_URI}
-      default-prompt: ${AI_DEFAULTPROMPT}
-      proxy-address: ${AI_PROXYADDRESS}
+      text-api-key: ${AI_TEXT_APIKEY}
+      text-model: ${AI_TEXT_MODEL}
+      text-uri: ${AI_TEXT_URI}
+      text-default-prompt: ${AI_TEXT_DEFAULT_PROMPT}
+
+      image-api-key: ${AI_IMAGE_APIKEY}
+      image-model: ${AI_IMAGE_MODEL}
+      image-uri: ${AI_IMAGE_URI}
+      image-default-prompt: ${AI_IMAGE_DEFAULT_PROMPT}
+
+      proxy-address: ${AI_PROXY_ADDRESS}
+      proxy-port: ${AI_PROXY_PORT}
+      proxy-enabled: ${AI_PROXY_ENABLED}
     ocr:
-      service-url: ${OCR_SERVICE_URL:http://127.0.0.1:8000/ocr}
+      service-url: ${OCR_SERVICE_URL:http://127.0.0.1:7634/ocr}
+      api-key: ${OCR_API_KEY:}
+      default-mode: ${OCR_DEFAULT_MODE:detail}
+      default-min-confidence: ${OCR_DEFAULT_MIN_CONFIDENCE:}
       result-ttl: ${OCR_RESULT_TTL:3600}
-      max-file-size-bytes: ${OCR_MAX_FILE_SIZE_BYTES:5242880}
+      max-file-size-bytes: ${OCR_MAX_FILE_SIZE_BYTES:52428800}
       submit-confirm-timeout-millis: ${OCR_SUBMIT_CONFIRM_TIMEOUT_MILLIS:5000}
       max-retry-count: ${OCR_MAX_RETRY_COUNT:3}
       retry-delay-millis: ${OCR_RETRY_DELAY_MILLIS:15000}
+      minio-bucket: ${OCR_MINIO_BUCKET:ocr-temp}
       pending-timeout-seconds: ${OCR_PENDING_TIMEOUT_SECONDS:300}
       pending-timeout-scan-interval-millis: ${OCR_PENDING_TIMEOUT_SCAN_INTERVAL_MILLIS:60000}
+      daily-ip-limit: ${OCR_DAILY_IP_LIMIT:20}
       allowed-content-types:
         - image/jpeg
         - image/jpg
         - image/png
         - image/webp
         - image/bmp
+        - image/heic
+        - image/heif
+        - application/pdf
