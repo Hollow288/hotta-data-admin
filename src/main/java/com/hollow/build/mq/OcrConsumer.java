@@ -94,6 +94,22 @@ public class OcrConsumer {
             return;
         }
 
+        // 处理前先校验任务在 Redis 中的当前状态：
+        // - 记录已不存在：可能 Redis TTL 过期，前端早就拿不到了，直接丢弃避免无谓调用远程 OCR
+        // - 已是终态（SUCCESS / FAILED）：调度器或上一次消费已经写入终态，
+        //   这里若直接覆盖成 PROCESSING 会让任务"复活"，导致前端永远轮询到 PENDING/PROCESSING。
+        OcrTaskDto current = ocrTaskStateService.getTask(taskId);
+        if (current == null) {
+            log.warn("OCR 任务记录已不存在（可能已过期），丢弃消息: taskId={}", taskId);
+            return;
+        }
+        String currentStatus = current.getStatus();
+        if ("SUCCESS".equals(currentStatus) || "FAILED".equals(currentStatus)) {
+            log.warn("OCR 任务已处于终态 {}（可能已被调度器超时标记），丢弃此消息: taskId={}",
+                    currentStatus, taskId);
+            return;
+        }
+
         log.info("开始处理 OCR 任务: taskId={}, fileName={}, mode={}, minConfidence={}, retryCount={}",
                 taskId, fileName, mode, minConfidence, retryCount);
 

@@ -59,17 +59,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) {
         final var unsecuredApiBeingInvoked = apiEndpointSecurityInspector.isUnsecureRequest(request);
 
-        log.info("=== 请求进入过滤器 ===");
-        log.info("Request URI: {}", request.getRequestURI());
-        log.info("Request URL: {}", request.getRequestURL());
-        log.info("Request Method: {}", request.getMethod());
-        log.info("Query String: {}", request.getQueryString());
-        log.info("Context Path: {}", request.getContextPath());
-        log.info("Servlet Path: {}", request.getServletPath());
-        log.info("Path Info: {}", request.getPathInfo());
-        log.info("Authorization Header: {}", request.getHeader(AUTHORIZATION_HEADER));
-        log.info("Content-Type: {}", request.getContentType());
-        log.info("=== 结束请求信息 ===");
+//        log.info("=== 请求进入过滤器 ===");
+//        log.info("Request URI: {}", request.getRequestURI());
+//        log.info("Request URL: {}", request.getRequestURL());
+//        log.info("Request Method: {}", request.getMethod());
+//        log.info("Query String: {}", request.getQueryString());
+//        log.info("Context Path: {}", request.getContextPath());
+//        log.info("Servlet Path: {}", request.getServletPath());
+//        log.info("Path Info: {}", request.getPathInfo());
+//        log.info("Authorization Header: {}", request.getHeader(AUTHORIZATION_HEADER));
+//        log.info("Content-Type: {}", request.getContentType());
+//        log.info("=== 结束请求信息 ===");
 
 
 

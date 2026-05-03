@@ -79,8 +79,12 @@ public class OcrTaskStateService {
         dto.setCreatedAt(dto.getCreatedAt() != null ? dto.getCreatedAt() : now);
         dto.setUpdatedAt(now);
         persist(dto);
+        // 终态从活跃集合移除；非终态（PROCESSING / 重试回到的 PENDING）必须重新加回，
+        // 否则一旦被调度器踢出集合，就成了调度器再也扫不到的"孤儿任务"。
         if ("SUCCESS".equals(status) || "FAILED".equals(status)) {
             redisUtil.removeSetMembers(OCR_ACTIVE_TASKS_KEY, taskId);
+        } else {
+            redisUtil.addToSet(OCR_ACTIVE_TASKS_KEY, taskId);
         }
         return dto;
     }
