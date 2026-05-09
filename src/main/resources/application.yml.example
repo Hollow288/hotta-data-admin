@@ -95,6 +95,16 @@ com:
       proxy-address: ${AI_PROXY_ADDRESS}
       proxy-port: ${AI_PROXY_PORT}
       proxy-enabled: ${AI_PROXY_ENABLED}
+    agent:
+      # Agent 主循环最多跑几轮（防止 AI 不停调工具）
+      max-iterations: 6
+      # 一次 query_table 最多返回多少行
+      max-query-limit: 50
+      # AI 允许访问的表名白名单 —— 任何不在这里的表，工具都会拒绝
+      allowed-tables:
+        - blog_posts
+        - event_news
+        - role
     ocr:
       service-url: ${OCR_SERVICE_URL:http://127.0.0.1:7634/ocr}
       api-key: ${OCR_API_KEY:}
