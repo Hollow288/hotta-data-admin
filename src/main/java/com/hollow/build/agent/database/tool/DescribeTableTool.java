@@ -1,8 +1,8 @@
-package com.hollow.build.agent.tool.impl;
+package com.hollow.build.agent.database.tool;
 
 import com.alibaba.fastjson2.JSON;
 import com.hollow.build.agent.config.AgentProperties;
-import com.hollow.build.agent.tool.Tool;
+import com.hollow.build.agent.database.DatabaseTool;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -16,7 +16,7 @@ import java.util.Map;
  * 表名先经白名单校验再使用，避免任意表泄露。
  */
 @Component
-public class DescribeTableTool implements Tool {
+public class DescribeTableTool implements DatabaseTool {
 
     private final JdbcTemplate jdbcTemplate;
     private final AgentProperties agentProperties;

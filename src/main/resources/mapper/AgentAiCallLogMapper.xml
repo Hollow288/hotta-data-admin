@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hollow.build.agent.repository.AgentAiCallLogMapper">
+
+    <insert id="insert" parameterType="com.hollow.build.agent.entity.AgentAiCallLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_ai_call_log
+            (request_log_id, request_id, agent_name, iteration_index, model,
+             request_body, response_body, http_status,
+             prompt_tokens, completion_tokens, total_tokens,
+             tool_call_count, finish_reason, duration_ms, error_message)
+        VALUES
+            (#{requestLogId}, #{requestId}, #{agentName}, #{iterationIndex}, #{model},
+             #{requestBody}, #{responseBody}, #{httpStatus},
+             #{promptTokens}, #{completionTokens}, #{totalTokens},
+             #{toolCallCount}, #{finishReason}, #{durationMs}, #{errorMessage})
+    </insert>
+
+    <update id="updateRequestLogIdByRequestId">
+        UPDATE agent_ai_call_log
+        SET request_log_id = #{requestLogId}
+        WHERE request_id = #{requestId}
+          AND request_log_id IS NULL
+    </update>
+
+</mapper>

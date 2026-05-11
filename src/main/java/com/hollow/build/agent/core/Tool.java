@@ -1,4 +1,4 @@
-package com.hollow.build.agent.tool;
+package com.hollow.build.agent.core;
 
 import java.util.Map;
 

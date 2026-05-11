@@ -1,6 +1,7 @@
 package com.hollow.build.handler;
 
 import com.alibaba.fastjson2.JSON;
+import com.hollow.build.agent.config.AgentDisabledException;
 import com.hollow.build.common.ApiResponse;
 import com.hollow.build.common.enums.GlobalErrorCodeConstants;
 import jakarta.servlet.http.HttpServletResponse;
@@ -56,6 +57,22 @@ public class GlobalExceptionHandler {
         response.setCharacterEncoding("utf-8");
 
         ApiResponse<Object> result = new ApiResponse<>(GlobalErrorCodeConstants.FORBIDDEN.getCode(), GlobalErrorCodeConstants.FORBIDDEN.getMsg());
+        response.getWriter().write(JSON.toJSONString(result));
+    }
+
+    /**
+     * 处理 agent 被运营开关关闭时抛出的异常，返回 501 "功能未实现/未开启"。
+     */
+    @ExceptionHandler(AgentDisabledException.class)
+    public void handleAgentDisabled(HttpServletResponse response, AgentDisabledException ex) throws IOException {
+        logger.warn("Agent disabled: {}", ex.getAgentName());
+        response.setStatus(HttpServletResponse.SC_OK);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("utf-8");
+
+        ApiResponse<Object> result = new ApiResponse<>(
+                GlobalErrorCodeConstants.NOT_IMPLEMENTED.getCode(),
+                "agent 已关闭: " + ex.getAgentName());
         response.getWriter().write(JSON.toJSONString(result));
     }
 

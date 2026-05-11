@@ -105,6 +105,14 @@ com:
         - blog_posts
         - event_news
         - role
+      # AliasAgent 的别名表路径：存在即读外部文件，不存在则回退 classpath:agent/alias.json。
+      # docker 部署时把宿主机文件挂载到 /app/config/alias.json 即可热替换。
+      alias-file-path: ./config/alias.json
+      # 各 agent 启动时的默认开关。运行时可通过 /api/v1/agent/admin/switches 改，
+      # 但变更只在内存里，进程重启会回到这里的默认值。
+      enabled-agents:
+        database: true
+        alias: true
     ocr:
       service-url: ${OCR_SERVICE_URL:http://127.0.0.1:7634/ocr}
       api-key: ${OCR_API_KEY:}

@@ -23,6 +23,7 @@ import java.util.Map;
  * <ul>
  *   <li>请求体里多了 "tools" 字段（function calling 协议）</li>
  *   <li>解析响应时关心的不只是 content，还有 tool_calls</li>
+ *   <li>返回 {@link AiCallOutcome}，把请求/响应/tokens 等元数据一并带出去给日志层</li>
  * </ul>
  *
  * <p>本实现复用了项目原本的文本模型配置（com.hollow.ai.text-*），并且简化了 API key
@@ -55,17 +56,21 @@ public class AgentAiClient {
     /**
      * 发送一次 chat completion 请求，并把可用工具列表也一起告诉 AI。
      *
-     * @param messages 完整对话历史（含 system / user / assistant / tool 各角色）
-     * @param tools    OpenAI 兼容格式的工具数组（来自 ToolRegistry#openAiFormat）
-     * @return AI 这一轮回复的 message 对象（即 choices[0].message）；其中：
-     *         - 若 AI 想调工具，会含 "tool_calls" 字段；
-     *         - 若 AI 给出最终答复，会含 "content" 字段。
+     * <p>本方法不抛出异常 —— 网络异常、解析异常都会被 catch 并写入
+     * {@link AiCallOutcome#errorMessage()}。调用方（DatabaseAgent）应当
+     * 先把 outcome 写日志、再根据 errorMessage 决定是否中断主循环。
+     *
+     * @param messages 完整对话历史
+     * @param tools    OpenAI 兼容格式的工具数组
+     * @return 完整调用结果，包含 AI 这一轮回复的 message 以及供日志使用的元数据
      */
-    public Map<String, Object> complete(List<Map<String, Object>> messages,
-                                        List<Map<String, Object>> tools) throws Exception {
+    public AiCallOutcome complete(List<Map<String, Object>> messages,
+                                  List<Map<String, Object>> tools) {
+
+        String model = aiConfigurationProperties.getTextModel();
 
         Map<String, Object> body = new HashMap<>();
-        body.put("model", aiConfigurationProperties.getTextModel());
+        body.put("model", model);
         body.put("messages", messages);
         body.put("temperature", 0.2); // 工具调用希望确定性高一点
         body.put("stream", false);
@@ -74,34 +79,95 @@ public class AgentAiClient {
             body.put("tool_choice", "auto");
         }
 
-        String apiKey = pickApiKey();
+        String requestBody = JSON.toJSONString(body);
+        long start = System.currentTimeMillis();
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(aiConfigurationProperties.getTextUri()))
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .timeout(Duration.ofSeconds(60))
-                .POST(HttpRequest.BodyPublishers.ofString(JSON.toJSONString(body)))
-                .build();
+        try {
+            String apiKey = pickApiKey();
 
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        String responseBody = response.body();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(aiConfigurationProperties.getTextUri()))
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(60))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
 
-        if (responseBody != null && responseBody.startsWith("[")) {
-            // 错误返回常常是 JSON 数组形式
-            throw new IllegalStateException("AI 接口返回错误: " + responseBody);
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            long durationMs = System.currentTimeMillis() - start;
+            String responseBody = response.body();
+            int httpStatus = response.statusCode();
+
+            if (responseBody != null && responseBody.startsWith("[")) {
+                // 错误返回常常是 JSON 数组形式
+                return failure(model, requestBody, responseBody, httpStatus, durationMs,
+                        "AI 接口返回错误: " + responseBody);
+            }
+
+            Map<String, Object> json = JSON.parseObject(responseBody, new TypeReference<>() {});
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> choices = (List<Map<String, Object>>) json.get("choices");
+            if (choices == null || choices.isEmpty()) {
+                return failure(model, requestBody, responseBody, httpStatus, durationMs,
+                        "AI 接口返回不含 choices: " + responseBody);
+            }
+            Map<String, Object> choice = choices.get(0);
+            @SuppressWarnings("unchecked")
+            Map<String, Object> message = (Map<String, Object>) choice.get("message");
+
+            String finishReason = asString(choice.get("finish_reason"));
+            int toolCallCount = countToolCalls(message);
+
+            Integer prompt = null, completion = null, total = null;
+            Object usageObj = json.get("usage");
+            if (usageObj instanceof Map<?, ?> usage) {
+                prompt = asInt(usage.get("prompt_tokens"));
+                completion = asInt(usage.get("completion_tokens"));
+                total = asInt(usage.get("total_tokens"));
+            }
+
+            return new AiCallOutcome(message, model, requestBody, responseBody,
+                    httpStatus, durationMs,
+                    prompt, completion, total,
+                    finishReason, toolCallCount, null);
+
+        } catch (Exception e) {
+            long durationMs = System.currentTimeMillis() - start;
+            return failure(model, requestBody, null, null, durationMs,
+                    e.getMessage() == null ? e.toString() : e.getMessage());
         }
+    }
 
-        Map<String, Object> json = JSON.parseObject(responseBody, new TypeReference<>() {});
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> choices = (List<Map<String, Object>>) json.get("choices");
-        if (choices == null || choices.isEmpty()) {
-            throw new IllegalStateException("AI 接口返回不含 choices: " + responseBody);
+    private static AiCallOutcome failure(String model, String requestBody, String responseBody,
+                                         Integer httpStatus, long durationMs, String errorMessage) {
+        return new AiCallOutcome(null, model, requestBody, responseBody,
+                httpStatus, durationMs,
+                null, null, null,
+                null, 0, errorMessage);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static int countToolCalls(Map<String, Object> message) {
+        if (message == null) {
+            return 0;
         }
-        @SuppressWarnings("unchecked")
-        Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-        return message;
+        Object toolCalls = message.get("tool_calls");
+        if (toolCalls instanceof List<?> list) {
+            return list.size();
+        }
+        return 0;
+    }
+
+    private static Integer asInt(Object o) {
+        if (o instanceof Number n) {
+            return n.intValue();
+        }
+        return null;
+    }
+
+    private static String asString(Object o) {
+        return o == null ? null : o.toString();
     }
 
     private String pickApiKey() {

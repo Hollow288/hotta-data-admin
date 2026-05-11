@@ -1,8 +1,8 @@
-package com.hollow.build.agent.tool.impl;
+package com.hollow.build.agent.database.tool;
 
 import com.alibaba.fastjson2.JSON;
 import com.hollow.build.agent.config.AgentProperties;
-import com.hollow.build.agent.tool.Tool;
+import com.hollow.build.agent.database.DatabaseTool;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -13,7 +13,7 @@ import java.util.Map;
  * AI 通常会先调用它"看看自己能查什么"，再决定下一步。
  */
 @Component
-public class ListTablesTool implements Tool {
+public class ListTablesTool implements DatabaseTool {
 
     private final AgentProperties agentProperties;
 

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hollow.build.agent.repository.AgentRequestLogMapper">
+
+    <insert id="insert" parameterType="com.hollow.build.agent.entity.AgentRequestLog"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO agent_request_log
+            (request_id, agent_name, user_message, model, reply, trace,
+             iterations, tool_call_count, total_tokens,
+             status, error_message, duration_ms, client_ip)
+        VALUES
+            (#{requestId}, #{agentName}, #{userMessage}, #{model}, #{reply}, #{trace},
+             #{iterations}, #{toolCallCount}, #{totalTokens},
+             #{status}, #{errorMessage}, #{durationMs}, #{clientIp})
+    </insert>
+
+</mapper>

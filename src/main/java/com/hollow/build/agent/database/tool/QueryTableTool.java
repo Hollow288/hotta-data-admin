@@ -1,8 +1,8 @@
-package com.hollow.build.agent.tool.impl;
+package com.hollow.build.agent.database.tool;
 
 import com.alibaba.fastjson2.JSON;
 import com.hollow.build.agent.config.AgentProperties;
-import com.hollow.build.agent.tool.Tool;
+import com.hollow.build.agent.database.DatabaseTool;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -31,7 +31,7 @@ import java.util.Map;
  * 真实项目里给 AI 暴露数据库时，这是常见护栏写法。
  */
 @Component
-public class QueryTableTool implements Tool {
+public class QueryTableTool implements DatabaseTool {
 
     private static final java.util.regex.Pattern IDENTIFIER = java.util.regex.Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
 
