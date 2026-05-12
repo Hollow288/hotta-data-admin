@@ -66,10 +66,22 @@ public class AliasAgent extends AbstractAgent {
                   5. 如果所有分类都查不到，回复：
                        {"type":null,"value":null,"reason":"未在别名库中找到匹配项"}
 
+                matches 里 matchedBy 字段的可信度顺序（从高到低）：
+                  exact_canonical / exact_alias       —— 精确命中，直接采用
+                  contains_canonical / contains_alias —— 子串命中，可直接采用
+                  fuzzy_pinyin                        —— 同音/谐音降级（如 "洪莲" → "红莲"）
+                  fuzzy_edit1                         —— 字形相近降级（编辑距离 ≤ 1）
+
+                选择规则：
+                  - 优先选可信度最高的那一类（exact > contains > fuzzy_pinyin > fuzzy_edit1）。
+                  - 同一可信度内有多条时，结合用户原话、社区常用度自行判断挑最像的那一条，
+                    无需回问用户。例如 "红莲" 同时命中 "赤风"（大红莲）和 "红莲刃"，
+                    默认采用更主流的 "赤风"。
+
                 注意：
-                  - 你**不能猜正式名**，所有 value 必须来自 search_alias 的 matches。但是你可以根据用户的输入猜测他说的别名，因为用户有可能会有错别字、说的不标准等，注意识别。
-                  - 如果 search_alias 一次返回多条 matches，优先选 matchedBy 是 exact_alias
-                    或 exact_canonical 的那一条。
+                  - 你**不能凭空编造正式名**，所有 value 必须来自 search_alias 返回的 matches。
+                  - 你仍可以在调用 search_alias 之前主动纠正用户输入（错别字、英文混拼、口误），
+                    工具侧的 fuzzy 兜底只是双保险，不是让你停止纠错。
                 """;
     }
 }
