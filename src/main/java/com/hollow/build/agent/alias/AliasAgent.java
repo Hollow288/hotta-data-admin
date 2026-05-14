@@ -9,6 +9,8 @@ import com.hollow.build.agent.log.AgentLogService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 /**
  * 别名解析 Agent —— 把用户口语化的称呼解析成正式名 + 分类。
  *
@@ -41,10 +43,24 @@ public class AliasAgent extends AbstractAgent {
     @Override
     public String routerDescription() {
         return """
-                用来把游戏里物品（武器/意志/源器）的口语化别名解析成正式名。
-                典型场景：用户提到"大红莲""赤峰""三刀哥"这类口头叫法，
-                想知道它们对应的正式名是什么。
+                仅处理游戏物品（武器 / 意志 / 源器）相关问题。
+                输入对象是物品的口语别名或正式名，无论用户是直接提及（"大红莲是什么"）
+                还是带查询动词（"查一下护盾源器"），只要谈的是游戏物品就属于这里。
                 """;
+    }
+
+    @Override
+    public String routerKeywords() {
+        return "出现游戏物品类型（武器 / 意志 / 源器）或物品口语别名（如\"大红莲\"\"赤风\"\"护盾源器\"\"三刀哥\"等）";
+    }
+
+    @Override
+    public List<RouterExample> routerExamples() {
+        return List.of(
+                new RouterExample("查一下护盾源器", "\"护盾\"是源器的口语别名"),
+                new RouterExample("大红莲是哪把武器", "\"大红莲\"是武器的口语别名"),
+                new RouterExample("三刀哥的技能描述", "口语别名优先做正式名识别")
+        );
     }
 
     @Override

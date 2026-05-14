@@ -63,6 +63,39 @@ public abstract class AbstractAgent {
      */
     public abstract String routerDescription();
 
+    /**
+     * 该 agent 独有的"领域术语 / 关键词"列表，给 Router 做判别用。
+     *
+     * <p>Router 会把所有开启 agent 的 keywords 汇总成"领域术语映射"段塞进路由 prompt：
+     * <pre>
+     *   领域术语映射：
+     *     - "database": 出现表名（user / blog_posts ...）、字段、SQL、...
+     *     - "alias":    出现游戏物品类型（武器 / 意志 / 源器）...
+     * </pre>
+     * 这样新增 / 关停 agent 时，关键词清单跟着 agent 走，Router 完全不用动。
+     *
+     * <p>默认空串表示这个 agent 没有专属术语 —— 完全依赖 {@link #routerDescription()} 兜底。
+     */
+    public String routerKeywords() {
+        return "";
+    }
+
+    /**
+     * 该 agent 的代表性 few-shot 示例。Router 会把所有开启 agent 的示例汇总后塞进路由 prompt。
+     *
+     * <p>跟 {@link #routerKeywords()} 一样：示例随 agent 走，关停一个 agent 它的示例也跟着消失，
+     * 不会再误导 LLM 把单子派去一个不存在的目标。
+     *
+     * <p>每条示例形如：用户原话 + "为什么该派给我"的简短理由。Router 在格式化时会自动补上
+     * agent 名字，所以这里**不要重复写** "→ database" 之类。
+     */
+    public List<RouterExample> routerExamples() {
+        return List.of();
+    }
+
+    /** Router few-shot 示例的数据载体。 */
+    public record RouterExample(String userQuery, String reason) {}
+
     /** 兼容入口：自己生成 requestId，不带 clientIp。 */
     public AgentResult ask(String userMessage) throws Exception {
         return ask(userMessage, UUID.randomUUID().toString().replace("-", ""), null);

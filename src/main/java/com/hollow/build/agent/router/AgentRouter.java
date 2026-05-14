@@ -120,7 +120,22 @@ public class AgentRouter {
                 .toList();
     }
 
-    /** 动态拼路由 prompt：只把开启的 agent 列进去。 */
+    /**
+     * 动态拼路由 prompt：只把开启的 agent 列进去。
+     *
+     * <p>结构（按 LLM 阅读习惯排）：
+     * <ol>
+     *   <li>每个 agent 的"我是谁"自描述（来自 {@link AbstractAgent#routerDescription()}）</li>
+     *   <li>各 agent 自报的领域术语（来自 {@link AbstractAgent#routerKeywords()}）</li>
+     *   <li>全局判别元规则 —— 跨 agent 的优先级 / 冲突裁决 / 兜底策略，集中维护在此处</li>
+     *   <li>few-shot 示例（来自 {@link AbstractAgent#routerExamples()}）</li>
+     *   <li>输出格式约束</li>
+     * </ol>
+     *
+     * <p>关键：**新增 agent 完全不必动 Router**。新 agent 自己实现 routerKeywords / routerExamples，
+     * Router 会自动把它的描述、关键词和示例汇总进 prompt；关停时也自动消失，不会再误导 LLM
+     * 把单派给一个不存在的目标。
+     */
     private String buildRouterPrompt(List<AbstractAgent> enabled) {
         StringBuilder sb = new StringBuilder();
         sb.append("你是一个 agent 路由器。系统里目前有以下可用 agent，请根据用户问题判断该派给谁：\n\n");
@@ -130,6 +145,34 @@ public class AgentRouter {
             // 把 routerDescription 的多行做个轻微缩进，prompt 里读起来更整齐
             String desc = agent.routerDescription().strip().replace("\n", "\n     ");
             sb.append(desc).append('\n');
+        }
+
+        // 各 agent 自报的领域术语，汇总成一段。某个 agent 没填 keywords 就不出现在这段里。
+        StringBuilder keywordsBlock = new StringBuilder();
+        for (AbstractAgent agent : enabled) {
+            String kw = agent.routerKeywords().strip();
+            if (!kw.isEmpty()) {
+                keywordsBlock.append("  - \"").append(agent.agentName()).append("\": ")
+                        .append(kw).append('\n');
+            }
+        }
+        if (keywordsBlock.length() > 0) {
+            sb.append("\n领域术语映射：\n").append(keywordsBlock);
+        }
+
+        sb.append('\n').append(ROUTER_META_RULES);
+
+        // 各 agent 自报的 few-shot 示例。Router 这里自动补上 → agent 名，agent 那边不用写。
+        StringBuilder examplesBlock = new StringBuilder();
+        for (AbstractAgent agent : enabled) {
+            for (AbstractAgent.RouterExample ex : agent.routerExamples()) {
+                examplesBlock.append("  \"").append(ex.userQuery()).append("\" → ")
+                        .append(agent.agentName())
+                        .append("  （").append(ex.reason()).append("）\n");
+            }
+        }
+        if (examplesBlock.length() > 0) {
+            sb.append("\n参考示例：\n").append(examplesBlock);
         }
 
         String names = enabled.stream().map(a -> "\"" + a.agentName() + "\"")
@@ -142,6 +185,21 @@ public class AgentRouter {
         sb.append("如果用户输入完全不属于任何一类（比如纯打字测试），也必须选一个最接近的，并给较低 confidence。\n");
         return sb.toString();
     }
+
+    /**
+     * 全局判别元规则 —— 跨 agent 的优先级 / 冲突裁决 / 兜底策略。
+     *
+     * <p>具体到某个 agent 的"出现什么术语就派给我"已经下放到 {@link AbstractAgent#routerKeywords()}，
+     * 这里只保留**不属于任何单个 agent**的元层逻辑。
+     */
+    private static final String ROUTER_META_RULES = """
+            判别准则（按优先级从高到低）：
+              1. **按用户问题里的"对象"分类，不要看动词**。"查/找/看/搜"哪个 agent 都可能用，
+                 真正决定路由的是用户在谈什么东西。
+              2. 用户问题里出现上面"领域术语映射"里的术语时，按术语直接对应到 agent。
+              3. 多个信号冲突时，以"出现的具体专有名词"为准（具体专有名词 > 一般动词）。
+              4. 完全无法判断时，仍要选一个最接近的并给较低 confidence。
+            """;
 
     private static RouteDecision parse(String content, List<AbstractAgent> enabled) {
         String fallback = enabled.get(0).agentName();
