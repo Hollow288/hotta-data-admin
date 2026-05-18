@@ -90,11 +90,11 @@ agent/
     ▼
 ┌─────────────────────────────────────────────┐
 │ AgentRouter.route()                         │
-│  ① decide() —— 一次 LLM 调用做"分类"        │
-│       AgentAiClient.complete(messages, [])  │  ← 不带 tools
-│       prompt 里要求只输出 JSON              │
+│  ① decide() —— 一次 LLM tool call 做"分类"  │
+│       AgentAiClient.complete(messages,      │
+│                              routeTools)    │  ← 只带 route_to_xxx 虚拟工具
 │       → AgentLogService.saveAiCallLog       │  ← 落明细表，agent_name="router"
-│       → 解析得 {target:"alias",confidence}  │
+│       → 解析 tool_call 得 target=alias       │
 │  ② switch 派发到 AliasAgent                 │
 └─────────────────────────────────────────────┘
     │
@@ -120,14 +120,15 @@ agent/
 └─────────────────────────────────────────────┘
     │
     ▼
-返回 {reply: "{...}", trace: [...]}
+返回 {requestId, agent, answerText, answerData}
 ```
 
 **关键点**：
 
 - 一次 ask 内会发 **N 次 HTTP 调用**给大模型。每次都把"全部对话历史"重新发过去（大模型自己不记账）。
 - AI 决定何时停止——它不再返回 `tool_calls` 而是返回 `content` 时，循环就结束。
-- Router 自己也是一次 AI 调用，只是它**不带 tools**，纯做分类。
+- Router 自己也是一次 AI 调用，但它带的是**路由专用 tools**（如 `route_to_alias`），不是业务 tools。
+- 如果用户问题不属于任何当前 agent，Router 会调用 `route_to_unsupported`，接口返回 400 业务码，不会硬塞给某个 agent。
 
 ---
 
@@ -184,8 +185,8 @@ agent/
 | `request_id` | 全链路追踪 ID（一次 ask 唯一） |
 | `agent_name` | 哪个 agent 处理的（database / alias） |
 | `user_message` | 用户原始问题 |
-| `reply` | AI 给出的最终回复 |
-| `trace` | 工具调用轨迹（JSON 数组：`[{tool, args, result, ms}]`）|
+| `reply` | AI 原始最终回复（内部日志用） |
+| `trace` | 工具调用轨迹（JSON 数组：`[{tool, args, result, ms}]`，调试用）|
 | `iterations` | 主循环跑了几轮 |
 | `tool_call_count` | 总调了几次工具 |
 | `total_tokens` | 整次 ask 累计 token |
@@ -212,7 +213,7 @@ agent/
 
 ```
 iteration | agent_name | 干了啥
-0         | router     | 判定 target=alias
+0         | router     | 调用 route_to_alias
 0         | alias      | AI 决定调 list_categories
 1         | alias      | AI 决定调 search_alias
 2         | alias      | AI 给出最终 JSON（无 tool_calls）
@@ -251,7 +252,7 @@ public ToolRegistry aliasToolRegistry(List<AliasTool> tools) {
 
 ## 7. AbstractAgent 抽了什么？子类只剩什么？
 
-`AbstractAgent.ask()` 里包了完整的 ReAct 循环。子类只需要回答 **4 件事**：
+`AbstractAgent.ask()` 里包了完整的 ReAct 循环。子类必填 **4 件事**：
 
 ```java
 @Service
@@ -281,7 +282,15 @@ public class DatabaseAgent extends AbstractAgent {
 
 > 注意 ③ 和 ④ 是**两种视角**：
 > - `systemPrompt()` 是 agent 自己拿到任务后给大模型的指令（"你是个 xxx 助手，按这个步骤干"）；
-> - `routerDescription()` 是给 Router 看的"自我推销"（"什么样的问题该派给我"）。Router 拿这个去拼路由 prompt，**只把当前开启的 agent 写进去**。
+> - `routerDescription()` 是给 Router 看的"自我推销"（"什么样的问题该派给我"）。Router 会把它放进对应 `route_to_xxx` 的 tool description，**只注册当前开启的 agent**。
+
+可选增强：
+
+| 方法 | 作用 |
+|------|------|
+| `routerKeywords()` | 给 Router 的领域术语提示，帮助区分相近 agent |
+| `routerExamples()` | 给 Router 的 few-shot 示例 |
+| `answerData()` / `answerText()` | 把模型最终回复整理成稳定 API 输出 |
 
 ---
 
@@ -291,32 +300,41 @@ Router **不是** AbstractAgent 的子类，因为它不需要循环、不需要
 
 ```
 输入：用户消息
-输出：{"target":"<某个 enabled agent 的 name>","confidence":0~1,"reason":"..."}
+输出：一次 tool_call，例如 route_to_alias({"confidence":0.9,"reason":"..."})
 ```
 
-它复用 `AgentAiClient`，但调用时**传空的 tools 数组**。系统提示词里**强约束**只输出 JSON。
+它复用 `AgentAiClient`，但调用时只注册**路由专用虚拟工具**：
 
-### 路由 prompt 是**动态拼**的（重点）
+| 路由工具 | 含义 |
+|----------|------|
+| `route_to_database` | 派给 DatabaseAgent |
+| `route_to_alias` | 派给 AliasAgent |
+| `route_to_unsupported` | 当前没有合适 agent，明确拒绝处理 |
+
+注意：Router 这一轮不会看到 `list_tables` / `search_alias` 这类业务工具；业务工具只在目标 Agent 的主循环里出现。
+
+### 路由 tools 是**动态拼**的（重点）
 
 Router 没有把 "有哪些 agent 可选" 写死。每次收到请求时：
 
 1. 通过 `List<AbstractAgent>` 拿到容器里所有 agent。
 2. 用 `AgentSwitches` 过滤掉被关掉的，留下**当前开启的**。
-3. 把每个开启 agent 的 `routerDescription()` 拼到 prompt 里。
-4. 末尾约束 `target` 只能是这些名字之一。
+3. 把每个开启 agent 的 `routerDescription()` / `routerKeywords()` 包进对应 `route_to_xxx` 的 tool description。
+4. 把各 agent 的 `routerExamples()` 作为 few-shot 示例放进 Router system prompt。
+5. 额外加入 `route_to_unsupported`，让 Router 能表达"当前不支持"。
 
 **结果**：关掉一个 agent，AI **根本不会看到它存在**——也就不会派单过去。
-不会再出现"AI 选了一个 agent，结果它已经被关了"这种尴尬。
+不会再出现"AI 选了一个 agent，结果它已经被关了"这种尴尬；不支持的问题也不会被硬塞给第一个 agent。
 
 ### 几个边界情况
 
 | 情况 | 行为 |
 |------|------|
-| 所有 agent 都关了 | 立刻抛错"没有任何 agent 处于开启状态"，**不调 LLM**（省 token）|
-| 只剩 1 个 agent 开 | **短路掉 LLM**，直接派发；省 token、降延迟 |
-| LLM 给的 target 是未知名字 | warn 一笔，fallback 到第一个开启的 agent |
-| LLM 给的 target 已被关 | 同上 fallback（罕见——只在判定瞬间被人改了开关时才会发生）|
-| LLM 调用失败 / JSON 解析失败 | 同上 fallback |
+| 所有 agent 都关了 | 立刻返回 400 业务码："当前 agent 系统暂不支持这个问题" |
+| 只剩 1 个 agent 开 | 仍走 Router，让它可以选择 `route_to_unsupported` |
+| 用户问题不属于任何 agent | 调用 `route_to_unsupported`，返回 400 业务码 |
+| LLM 给的 route tool 目标未知 / 已关 | 视为协议异常，返回 500，不再 fallback 到第一个 agent |
+| LLM 调用失败 / 未返回 tool_call | 返回 500，避免误派 |
 
 它的 LLM 调用同样落 `agent_ai_call_log`，`agent_name="router"`，方便你之后排查"为啥派错了"。
 
@@ -331,6 +349,26 @@ Router 没有把 "有哪些 agent 可选" 写死。每次收到请求时：
 | `POST /api/v1/agent/alias`    | 跳过路由，直连 AliasAgent    | 教学/调试 |
 
 请求体都一样：`{"message": "..."}`。
+
+默认响应不再返回工具轨迹，结构如下：
+
+```json
+{
+  "code": 200,
+  "msg": "成功",
+  "data": {
+    "requestId": "本次请求 ID",
+    "agent": "alias",
+    "answerText": "赤风",
+    "answerData": {
+      "type": "武器",
+      "value": "赤风"
+    }
+  }
+}
+```
+
+需要看工具调用过程时，加 `?debug=true`，响应里会多一个 `debugTrace` 字段。普通业务调用不建议默认暴露 trace。
 
 直连入口很有用——当你怀疑是路由判错了时，可以直接打到目标 agent 上验证。
 
@@ -459,12 +497,23 @@ public class OcrAgent extends AbstractAgent {
                 典型场景：用户上传一张图说"帮我把这张截图里的字提出来"……
                 """;
     }
+
+    @Override public String routerKeywords() {
+        return "出现图片、截图、OCR、识别文字、提取文字等术语";
+    }
+
+    @Override public List<RouterExample> routerExamples() {
+        return List.of(
+                new RouterExample("帮我识别这张截图里的文字", "图片文字识别需求"),
+                new RouterExample("把图里的字提出来", "OCR 场景")
+        );
+    }
 }
 ```
 
 ### Step 5：~~让 Router 知道有这个新 Agent~~（不用做！）
 
-🎉 **完全不用动 Router**：Spring 会自动把你的 `OcrAgent` 注入到 Router 的 `List<AbstractAgent>` 里；Router 调用时会从每个 agent 自己的 `routerDescription()` 现拼 prompt。**新增 agent 零侵入 Router**——这正是把描述放进 agent 自己的好处。
+🎉 **完全不用动 Router**：Spring 会自动把你的 `OcrAgent` 注入到 Router 的 `List<AbstractAgent>` 里；Router 调用时会把它包装成 `route_to_ocr` 路由工具。**新增 agent 零侵入 Router**——这正是把描述、关键词和示例放进 agent 自己的好处。
 
 ### Step 6（可选）：Controller 加直连入口
 
@@ -513,10 +562,10 @@ A: 由 `AgentProperties.maxIterations`（默认 6）兜底，达到上限会以 
 A: 直接调 `/api/v1/agent/database` 或 `/api/v1/agent/alias`，跳过路由层。
 
 **Q: 加了新 Agent 后 Router 经常派错？**
-A: 把你那个 agent 的 `routerDescription()` 写得更具体——典型场景、关键词都列上。Router 的 prompt 是从各 agent 的描述拼出来的，**写得越清楚派得越准**。改完不用重启 Router 类（在 agent 自己里）。
+A: 把你那个 agent 的 `routerDescription()` / `routerKeywords()` / `routerExamples()` 写得更具体。Router 会把描述和关键词放进 `route_to_xxx` 的 tool description，把示例放进 system prompt，**写得越清楚派得越准**。
 
 **Q: 关掉一个 agent 后，用户输入歪问题（"查查查查"），还是会被派给被关的 agent？**
-A: 改造后**不会**了。Router 的 prompt 是动态拼的，被关的 agent 根本不会出现在候选清单里——AI 看不到，自然不会选。如果你还在看到，先确认是 `AgentSwitches.snapshot()` 真的把它标 false 了，再确认 Router 这次调用走的是新版代码（即 prompt 里只包含开启的 agent）。
+A: 改造后**不会**了。Router 的 route tools 是动态拼的，被关的 agent 对应的 `route_to_xxx` 根本不会注册给 AI。如果用户问题本来就不属于任何开启的 agent，Router 应该调用 `route_to_unsupported`。
 
 ---
 
@@ -544,7 +593,7 @@ com:
 ## 14. 推荐的学习顺序
 
 1. 跑起来：`POST /api/v1/agent/ask {"message":"role 表里有几条数据？"}`
-2. 看响应里的 `trace`——你能看到 AI 调了哪些工具、传了什么参数。
+2. 调试时加 `?debug=true`，看响应里的 `debugTrace`——你能看到 AI 调了哪些工具、传了什么参数。
 3. 去 `agent_ai_call_log` 按 `request_id` 排序，**逐行读 `request_body` 的 messages**——你会真切地看到对话怎么"长出来"的。
 4. 改 `DatabaseAgent.systemPrompt()`，删掉"典型流程"那几句，再试一次——你会发现 AI 仍然能完成任务，但顺序可能不同了，由此理解 system prompt 的"引导"作用。
 5. 调 `/api/v1/agent/alias`，看它调几次工具就能给出 `{"type":"武器","value":"赤风"}`。

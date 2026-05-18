@@ -3,6 +3,7 @@ package com.hollow.build.agent.router;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.hollow.build.agent.config.AgentSwitches;
+import com.hollow.build.agent.config.AgentUnsupportedException;
 import com.hollow.build.agent.core.AbstractAgent;
 import com.hollow.build.agent.core.AgentAiClient;
 import com.hollow.build.agent.core.AiCallOutcome;
@@ -11,35 +12,31 @@ import com.hollow.build.agent.log.AgentLogService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Agent 路由器：拿到用户消息后，先用一次轻量 LLM 调用判定该派给哪个 agent。
+ * Agent 路由器：拿到用户消息后，用一次路由专用 function calling 判定该派给哪个 agent。
  *
- * <p><b>关键点（v2 改造）</b>：
- * <ul>
- *   <li>不再硬编码"有哪些 agent 可选"——Spring 自动收集 {@link AbstractAgent} 所有 bean。</li>
- *   <li>路由 prompt **动态拼接**，只包含 {@link AgentSwitches} 里当前开启的 agent。
- *       被关掉的 agent，AI <b>根本不会知道它存在</b>，自然不会派单过去。</li>
- *   <li>所有 agent 都关时直接抛错，不再瞎调 LLM 浪费 token。</li>
- *   <li>只剩 1 个 agent 时短路掉 LLM，直接派发。</li>
- *   <li>LLM 给出未知 / 已关的 target 时 fallback 到第一个开启的 agent，再 warn 一笔。</li>
- * </ul>
+ * <p>Router 这一轮只给 AI 暴露 {@code route_to_xxx} 这类虚拟工具，不暴露任何业务工具。
+ * 业务工具仍然只会在目标 {@link AbstractAgent} 的主循环里发送给 AI。
  */
 @Slf4j
 @Component
 public class AgentRouter {
 
     private static final String ROUTER_NAME = "router";
+    private static final String ROUTE_PREFIX = "route_to_";
+    public static final String UNSUPPORTED_TARGET = "unsupported";
 
     private final AgentAiClient aiClient;
     private final AgentLogService agentLogService;
     private final AgentSwitches agentSwitches;
 
-    /** agentName → bean。LinkedHashMap 保留注入顺序，影响 prompt 中的展示顺序。 */
+    /** agentName -> bean。LinkedHashMap 保留注入顺序，影响 prompt 中的展示顺序。 */
     private final Map<String, AbstractAgent> agentsByName;
 
     public AgentRouter(AgentAiClient aiClient,
@@ -55,31 +52,25 @@ public class AgentRouter {
         log.info("AgentRouter 已识别 {} 个 agent: {}", agentsByName.size(), agentsByName.keySet());
     }
 
-    /** 路由 + 派发的一条龙。 */
+    /** 路由 + 派发。 */
     public AbstractAgent.AgentResult route(String userMessage, String requestId, String clientIp) throws Exception {
         List<AbstractAgent> enabled = enabledAgents();
 
         if (enabled.isEmpty()) {
-            // 所有 agent 都关了，没法做任何事 —— 早 fail，省一次 LLM 调用。
-            throw new IllegalStateException("没有任何 agent 处于开启状态，请联系管理员检查开关配置");
-        }
-
-        if (enabled.size() == 1) {
-            // 只剩一个候选，无需问 AI，直接派发 —— 省 token、降延迟。
-            AbstractAgent only = enabled.get(0);
-            log.info("仅 1 个 agent 开启，路由短路到 {} requestId={}", only.agentName(), requestId);
-            return only.ask(userMessage, requestId, clientIp);
+            throw new AgentUnsupportedException("没有任何 agent 处于开启状态");
         }
 
         RouteDecision decision = decide(userMessage, requestId, enabled);
-        log.info("路由判定 requestId={} → {} (conf={}, reason={})",
+        log.info("路由判定 requestId={} -> {} (conf={}, reason={})",
                 requestId, decision.target(), decision.confidence(), decision.reason());
+
+        if (UNSUPPORTED_TARGET.equals(decision.target())) {
+            throw new AgentUnsupportedException(decision.reason());
+        }
 
         AbstractAgent target = agentsByName.get(decision.target());
         if (target == null || !agentSwitches.isEnabled(target.agentName())) {
-            AbstractAgent fallback = enabled.get(0);
-            log.warn("路由目标 {} 不可用，fallback 到 {}", decision.target(), fallback.agentName());
-            target = fallback;
+            throw new IllegalStateException("路由目标不可用: " + decision.target());
         }
 
         return target.ask(userMessage, requestId, clientIp);
@@ -89,28 +80,30 @@ public class AgentRouter {
     public RouteDecision decide(String userMessage, String requestId) {
         List<AbstractAgent> enabled = enabledAgents();
         if (enabled.isEmpty()) {
-            return new RouteDecision(null, 0.0, "no_enabled_agents");
+            return new RouteDecision(UNSUPPORTED_TARGET, 1.0, "没有任何 agent 处于开启状态");
         }
-        return decide(userMessage, requestId, enabled);
+        try {
+            return decide(userMessage, requestId, enabled);
+        } catch (Exception e) {
+            String reason = e.getMessage() == null ? e.toString() : e.getMessage();
+            return new RouteDecision(UNSUPPORTED_TARGET, 0.0, "router_error:" + reason);
+        }
     }
 
-    private RouteDecision decide(String userMessage, String requestId, List<AbstractAgent> enabled) {
+    private RouteDecision decide(String userMessage, String requestId, List<AbstractAgent> enabled) throws Exception {
         List<Map<String, Object>> messages = List.of(
                 Map.of("role", "system", "content", buildRouterPrompt(enabled)),
                 Map.of("role", "user", "content", userMessage)
         );
 
-        AiCallOutcome outcome = aiClient.complete(messages, List.of()); // 不带 tools
+        AiCallOutcome outcome = aiClient.complete(messages, buildRouteTools(enabled), "required");
         agentLogService.saveAiCallLog(toCallLog(outcome, requestId));
 
         if (outcome.errorMessage() != null) {
-            String fallback = enabled.get(0).agentName();
-            log.warn("路由 LLM 调用失败，fallback 到 {}: {}", fallback, outcome.errorMessage());
-            return new RouteDecision(fallback, 0.0, "router_llm_error:" + outcome.errorMessage());
+            throw new IllegalStateException("路由 LLM 调用失败: " + outcome.errorMessage());
         }
 
-        String content = outcome.message() == null ? "" : String.valueOf(outcome.message().get("content"));
-        return parse(content, enabled);
+        return parseToolCall(outcome.message(), enabled);
     }
 
     /** 收集当前开启的 agent，按注入顺序返回。 */
@@ -121,117 +114,165 @@ public class AgentRouter {
     }
 
     /**
-     * 动态拼路由 prompt：只把开启的 agent 列进去。
+     * 动态拼路由 prompt：只给 Router 放元规则和 few-shot。
      *
-     * <p>结构（按 LLM 阅读习惯排）：
-     * <ol>
-     *   <li>每个 agent 的"我是谁"自描述（来自 {@link AbstractAgent#routerDescription()}）</li>
-     *   <li>各 agent 自报的领域术语（来自 {@link AbstractAgent#routerKeywords()}）</li>
-     *   <li>全局判别元规则 —— 跨 agent 的优先级 / 冲突裁决 / 兜底策略，集中维护在此处</li>
-     *   <li>few-shot 示例（来自 {@link AbstractAgent#routerExamples()}）</li>
-     *   <li>输出格式约束</li>
-     * </ol>
-     *
-     * <p>关键：**新增 agent 完全不必动 Router**。新 agent 自己实现 routerKeywords / routerExamples，
-     * Router 会自动把它的描述、关键词和示例汇总进 prompt；关停时也自动消失，不会再误导 LLM
-     * 把单派给一个不存在的目标。
+     * <p>每个 agent 的描述 / 关键词会进入各自的 {@code route_to_xxx} tool description；
+     * few-shot 继续留在 system prompt 里，因为 function calling 只约束输出形式，不替代路由判断知识。
      */
     private String buildRouterPrompt(List<AbstractAgent> enabled) {
         StringBuilder sb = new StringBuilder();
-        sb.append("你是一个 agent 路由器。系统里目前有以下可用 agent，请根据用户问题判断该派给谁：\n\n");
+        sb.append("你是一个 agent 路由器。请根据用户问题调用最合适的 route_to_xxx 工具。\n");
+        sb.append("不要直接回答用户；不要输出普通文本；必须且只能调用一个路由工具。\n\n");
 
-        for (AbstractAgent agent : enabled) {
-            sb.append("  - \"").append(agent.agentName()).append("\": ");
-            // 把 routerDescription 的多行做个轻微缩进，prompt 里读起来更整齐
-            String desc = agent.routerDescription().strip().replace("\n", "\n     ");
-            sb.append(desc).append('\n');
-        }
+        String names = enabled.stream()
+                .map(AbstractAgent::agentName)
+                .collect(Collectors.joining(" / "));
+        sb.append("当前可用业务 agent：").append(names).append("。\n");
+        sb.append("如果没有任何业务 agent 适合处理用户问题，调用 route_to_unsupported。\n\n");
+        sb.append(ROUTER_META_RULES);
 
-        // 各 agent 自报的领域术语，汇总成一段。某个 agent 没填 keywords 就不出现在这段里。
-        StringBuilder keywordsBlock = new StringBuilder();
-        for (AbstractAgent agent : enabled) {
-            String kw = agent.routerKeywords().strip();
-            if (!kw.isEmpty()) {
-                keywordsBlock.append("  - \"").append(agent.agentName()).append("\": ")
-                        .append(kw).append('\n');
-            }
-        }
-        if (keywordsBlock.length() > 0) {
-            sb.append("\n领域术语映射：\n").append(keywordsBlock);
-        }
-
-        sb.append('\n').append(ROUTER_META_RULES);
-
-        // 各 agent 自报的 few-shot 示例。Router 这里自动补上 → agent 名，agent 那边不用写。
         StringBuilder examplesBlock = new StringBuilder();
         for (AbstractAgent agent : enabled) {
             for (AbstractAgent.RouterExample ex : agent.routerExamples()) {
-                examplesBlock.append("  \"").append(ex.userQuery()).append("\" → ")
-                        .append(agent.agentName())
+                examplesBlock.append("  \"").append(ex.userQuery()).append("\" -> ")
+                        .append(ROUTE_PREFIX).append(agent.agentName())
                         .append("  （").append(ex.reason()).append("）\n");
             }
         }
-        if (examplesBlock.length() > 0) {
-            sb.append("\n参考示例：\n").append(examplesBlock);
-        }
+        examplesBlock.append("  \"帮我生成一张图片\" -> ")
+                .append(ROUTE_PREFIX).append(UNSUPPORTED_TARGET)
+                .append("  （当前没有图片生成类 agent）\n");
+        examplesBlock.append("  \"今天天气怎么样\" -> ")
+                .append(ROUTE_PREFIX).append(UNSUPPORTED_TARGET)
+                .append("  （当前没有天气查询类 agent）\n");
 
-        String names = enabled.stream().map(a -> "\"" + a.agentName() + "\"")
-                .collect(Collectors.joining("|"));
-        sb.append('\n');
-        sb.append("只输出一个 JSON 对象，不要任何额外文字、不要 markdown：\n");
-        sb.append("  {\"target\":").append(names)
-                .append(",\"confidence\":0~1,\"reason\":\"一句话理由\"}\n\n");
-        sb.append("如果同时涉及多个，挑主要意图；拿不准就给较低 confidence 但仍要选一个。\n");
-        sb.append("如果用户输入完全不属于任何一类（比如纯打字测试），也必须选一个最接近的，并给较低 confidence。\n");
+        sb.append("\n参考示例：\n").append(examplesBlock);
         return sb.toString();
     }
 
     /**
      * 全局判别元规则 —— 跨 agent 的优先级 / 冲突裁决 / 兜底策略。
-     *
-     * <p>具体到某个 agent 的"出现什么术语就派给我"已经下放到 {@link AbstractAgent#routerKeywords()}，
-     * 这里只保留**不属于任何单个 agent**的元层逻辑。
      */
     private static final String ROUTER_META_RULES = """
             判别准则（按优先级从高到低）：
-              1. **按用户问题里的"对象"分类，不要看动词**。"查/找/看/搜"哪个 agent 都可能用，
+              1. 按用户问题里的"对象"分类，不要看动词。"查/找/看/搜"哪个 agent 都可能用，
                  真正决定路由的是用户在谈什么东西。
-              2. 用户问题里出现上面"领域术语映射"里的术语时，按术语直接对应到 agent。
+              2. 用户问题里出现 route_to_xxx 工具描述中的领域术语时，优先按术语对应到 agent。
               3. 多个信号冲突时，以"出现的具体专有名词"为准（具体专有名词 > 一般动词）。
-              4. 完全无法判断时，仍要选一个最接近的并给较低 confidence。
+              4. 当前没有合适 agent 时，不要强行选择业务 agent，调用 route_to_unsupported。
             """;
 
-    private static RouteDecision parse(String content, List<AbstractAgent> enabled) {
-        String fallback = enabled.get(0).agentName();
+    private List<Map<String, Object>> buildRouteTools(List<AbstractAgent> enabled) {
+        List<Map<String, Object>> tools = new ArrayList<>();
+        for (AbstractAgent agent : enabled) {
+            tools.add(routeTool(agent));
+        }
+        tools.add(unsupportedRouteTool());
+        return tools;
+    }
 
-        if (content == null || content.isBlank()) {
-            return new RouteDecision(fallback, 0.0, "empty_router_response");
+    private static Map<String, Object> routeTool(AbstractAgent agent) {
+        StringBuilder desc = new StringBuilder();
+        desc.append("当用户请求应该交给 \"").append(agent.agentName()).append("\" agent 处理时调用。\n");
+        desc.append(agent.routerDescription().strip());
+
+        String keywords = agent.routerKeywords().strip();
+        if (!keywords.isEmpty()) {
+            desc.append("\n领域术语：").append(keywords);
         }
-        // 容错：模型可能用 ```json 包起来
-        String trimmed = content.trim();
-        if (trimmed.startsWith("```")) {
-            int start = trimmed.indexOf('{');
-            int end = trimmed.lastIndexOf('}');
-            if (start >= 0 && end > start) {
-                trimmed = trimmed.substring(start, end + 1);
-            }
+
+        return tool(ROUTE_PREFIX + agent.agentName(), desc.toString());
+    }
+
+    private static Map<String, Object> unsupportedRouteTool() {
+        return tool(ROUTE_PREFIX + UNSUPPORTED_TARGET,
+                "当前没有任何可用业务 agent 适合处理用户请求时调用。"
+                        + "例如图片生成、天气查询、闲聊、外部实时信息查询等当前系统未提供的能力。");
+    }
+
+    private static Map<String, Object> tool(String name, String description) {
+        return Map.of(
+                "type", "function",
+                "function", Map.of(
+                        "name", name,
+                        "description", description,
+                        "parameters", routeParametersSchema()
+                )
+        );
+    }
+
+    private static Map<String, Object> routeParametersSchema() {
+        return Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "confidence", Map.of(
+                                "type", "number",
+                                "description", "0 到 1 的路由置信度"
+                        ),
+                        "reason", Map.of(
+                                "type", "string",
+                                "description", "一句话说明为什么调用这个路由工具"
+                        )
+                ),
+                "required", List.of("confidence", "reason")
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static RouteDecision parseToolCall(Map<String, Object> message, List<AbstractAgent> enabled) {
+        if (message == null) {
+            throw new IllegalStateException("路由响应缺少 message");
         }
-        try {
-            JSONObject json = JSON.parseObject(trimmed);
-            String target = json.getString("target");
-            Double confidence = json.getDouble("confidence");
-            String reason = json.getString("reason");
-            if (target == null) {
-                return new RouteDecision(fallback, 0.0, "missing_target_field");
-            }
-            return new RouteDecision(
-                    target.toLowerCase(),
-                    confidence == null ? 0.5 : confidence,
-                    reason == null ? "" : reason
-            );
-        } catch (Exception e) {
-            return new RouteDecision(fallback, 0.0, "parse_error:" + content);
+
+        Object toolCallsObj = message.get("tool_calls");
+        if (!(toolCallsObj instanceof List<?> toolCalls) || toolCalls.isEmpty()) {
+            Object content = message.get("content");
+            throw new IllegalStateException("路由响应没有 tool_calls: " + content);
         }
+
+        Object first = toolCalls.get(0);
+        if (!(first instanceof Map<?, ?> call)) {
+            throw new IllegalStateException("路由 tool_call 格式异常: " + JSON.toJSONString(first));
+        }
+
+        Object functionObj = call.get("function");
+        if (!(functionObj instanceof Map<?, ?> function)) {
+            throw new IllegalStateException("路由 tool_call 缺少 function: " + JSON.toJSONString(first));
+        }
+
+        String functionName = asString(function.get("name"));
+        String target = parseTarget(functionName);
+        if (!UNSUPPORTED_TARGET.equals(target) && enabled.stream().noneMatch(a -> a.agentName().equals(target))) {
+            throw new IllegalStateException("路由目标不在当前开启列表中: " + target);
+        }
+
+        String arguments = asString(function.get("arguments"));
+        JSONObject args = arguments == null || arguments.isBlank()
+                ? new JSONObject()
+                : JSON.parseObject(arguments);
+
+        Double confidence = args.getDouble("confidence");
+        String reason = args.getString("reason");
+        return new RouteDecision(
+                target,
+                confidence == null ? 0.5 : confidence,
+                reason == null ? "" : reason
+        );
+    }
+
+    private static String parseTarget(String functionName) {
+        if (functionName == null || !functionName.startsWith(ROUTE_PREFIX)) {
+            throw new IllegalStateException("未知路由工具: " + functionName);
+        }
+        String target = functionName.substring(ROUTE_PREFIX.length());
+        if (target.isBlank()) {
+            throw new IllegalStateException("路由工具缺少目标: " + functionName);
+        }
+        return target;
+    }
+
+    private static String asString(Object o) {
+        return o == null ? null : o.toString();
     }
 
     private static AgentAiCallLog toCallLog(AiCallOutcome outcome, String requestId) {

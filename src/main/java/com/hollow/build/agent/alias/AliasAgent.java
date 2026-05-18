@@ -1,5 +1,7 @@
 package com.hollow.build.agent.alias;
 
+import com.alibaba.fastjson2.JSON;
+import com.alibaba.fastjson2.TypeReference;
 import com.hollow.build.agent.config.AgentProperties;
 import com.hollow.build.agent.config.AgentSwitches;
 import com.hollow.build.agent.core.AbstractAgent;
@@ -9,7 +11,10 @@ import com.hollow.build.agent.log.AgentLogService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * 别名解析 Agent —— 把用户口语化的称呼解析成正式名 + 分类。
@@ -26,6 +31,8 @@ import java.util.List;
  */
 @Service
 public class AliasAgent extends AbstractAgent {
+
+    private static final Set<String> VALID_TYPES = Set.of("武器", "意志", "源器");
 
     public AliasAgent(AgentAiClient aiClient,
                       @Qualifier("aliasToolRegistry") ToolRegistry toolRegistry,
@@ -99,5 +106,51 @@ public class AliasAgent extends AbstractAgent {
                   - 你仍可以在调用 search_alias 之前主动纠正用户输入（错别字、英文混拼、口误），
                     工具侧的 fuzzy 兜底只是双保险，不是让你停止纠错。
                 """;
+    }
+
+    @Override
+    protected Object answerData(String reply) {
+        String json = extractJsonObject(reply);
+        if (json == null) {
+            return null;
+        }
+
+        try {
+            Map<String, Object> data = JSON.parseObject(
+                    json, new TypeReference<LinkedHashMap<String, Object>>() {});
+            Object type = data.get("type");
+            if (type != null && !VALID_TYPES.contains(type.toString())) {
+                return null;
+            }
+            return data;
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    @Override
+    protected String answerText(String reply, Object answerData) {
+        if (answerData instanceof Map<?, ?> data) {
+            Object value = data.get("value");
+            if (value != null) {
+                return value.toString();
+            }
+            Object reason = data.get("reason");
+            return reason == null ? "未在别名库中找到匹配项" : reason.toString();
+        }
+        return super.answerText(reply, answerData);
+    }
+
+    private static String extractJsonObject(String reply) {
+        if (reply == null || reply.isBlank()) {
+            return null;
+        }
+        String trimmed = reply.trim();
+        int start = trimmed.indexOf('{');
+        int end = trimmed.lastIndexOf('}');
+        if (start < 0 || end <= start) {
+            return null;
+        }
+        return trimmed.substring(start, end + 1);
     }
 }

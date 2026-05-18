@@ -66,6 +66,18 @@ public class AgentAiClient {
      */
     public AiCallOutcome complete(List<Map<String, Object>> messages,
                                   List<Map<String, Object>> tools) {
+        return complete(messages, tools, "auto");
+    }
+
+    /**
+     * 发送一次 chat completion 请求，并允许调用方指定 tool_choice。
+     *
+     * <p>普通业务 Agent 使用 {@code auto}，让模型自行决定是否继续调工具；
+     * Router 使用 {@code required}，强制模型在 route_to_xxx 工具中选一个，避免自由文本 JSON。
+     */
+    public AiCallOutcome complete(List<Map<String, Object>> messages,
+                                  List<Map<String, Object>> tools,
+                                  String toolChoice) {
 
         String model = aiConfigurationProperties.getTextModel();
 
@@ -76,7 +88,9 @@ public class AgentAiClient {
         body.put("stream", false);
         if (tools != null && !tools.isEmpty()) {
             body.put("tools", tools);
-            body.put("tool_choice", "auto");
+            if (toolChoice != null && !toolChoice.isBlank()) {
+                body.put("tool_choice", toolChoice);
+            }
         }
 
         String requestBody = JSON.toJSONString(body);

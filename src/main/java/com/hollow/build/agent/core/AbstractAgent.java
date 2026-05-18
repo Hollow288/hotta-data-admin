@@ -96,6 +96,21 @@ public abstract class AbstractAgent {
     /** Router few-shot 示例的数据载体。 */
     public record RouterExample(String userQuery, String reason) {}
 
+    /**
+     * 把模型最终回复转换为给客户端使用的结构化数据。默认无结构化数据。
+     *
+     * <p>例如 AliasAgent 会把 {@code {"type":"武器","value":"赤风"}} 解析成对象；
+     * DatabaseAgent 则保持自然语言文本，结构化数据为 null。
+     */
+    protected Object answerData(String reply) {
+        return null;
+    }
+
+    /** 给客户端展示的稳定文本。默认直接使用模型最终回复。 */
+    protected String answerText(String reply, Object answerData) {
+        return reply == null ? "" : reply;
+    }
+
     /** 兼容入口：自己生成 requestId，不带 clientIp。 */
     public AgentResult ask(String userMessage) throws Exception {
         return ask(userMessage, UUID.randomUUID().toString().replace("-", ""), null);
@@ -153,7 +168,7 @@ public abstract class AbstractAgent {
                     Object content = aiMessage.get("content");
                     reply = content == null ? "" : content.toString();
                     status = "SUCCESS";
-                    return new AgentResult(reply, traceForUi);
+                    return buildResult(reply, traceForUi);
                 }
 
                 messages.add(sanitizeAssistantMessage(aiMessage));
@@ -191,7 +206,7 @@ public abstract class AbstractAgent {
             }
 
             reply = "达到最大迭代次数（" + agentProperties.getMaxIterations() + "）仍未结束，已停止。";
-            return new AgentResult(reply, traceForUi);
+            return buildResult(reply, traceForUi);
 
         } catch (Exception e) {
             if (errorMessage == null) {
@@ -216,6 +231,11 @@ public abstract class AbstractAgent {
             logEntity.setClientIp(clientIp);
             agentLogService.saveRequestLog(logEntity);
         }
+    }
+
+    private AgentResult buildResult(String reply, List<String> traceForUi) {
+        Object data = answerData(reply);
+        return new AgentResult(agentName(), answerText(reply, data), data, traceForUi);
     }
 
     private static AgentAiCallLog toCallLog(AiCallOutcome outcome, String requestId,
@@ -247,6 +267,6 @@ public abstract class AbstractAgent {
         return copy;
     }
 
-    /** Agent 的最终输出：AI 的回复 + 这一轮里调过的工具轨迹（便于排查）。 */
-    public record AgentResult(String reply, List<String> trace) {}
+    /** Agent 的最终输出：面向客户端的答案 + 可选调试轨迹。 */
+    public record AgentResult(String agentName, String answerText, Object answerData, List<String> debugTrace) {}
 }

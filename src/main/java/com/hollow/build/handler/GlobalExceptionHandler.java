@@ -2,6 +2,7 @@ package com.hollow.build.handler;
 
 import com.alibaba.fastjson2.JSON;
 import com.hollow.build.agent.config.AgentDisabledException;
+import com.hollow.build.agent.config.AgentUnsupportedException;
 import com.hollow.build.common.ApiResponse;
 import com.hollow.build.common.enums.GlobalErrorCodeConstants;
 import jakarta.servlet.http.HttpServletResponse;
@@ -73,6 +74,22 @@ public class GlobalExceptionHandler {
         ApiResponse<Object> result = new ApiResponse<>(
                 GlobalErrorCodeConstants.NOT_IMPLEMENTED.getCode(),
                 "agent 已关闭: " + ex.getAgentName());
+        response.getWriter().write(JSON.toJSONString(result));
+    }
+
+    /**
+     * 处理 Router 明确判定当前没有合适 agent 可处理的情况。
+     */
+    @ExceptionHandler(AgentUnsupportedException.class)
+    public void handleAgentUnsupported(HttpServletResponse response, AgentUnsupportedException ex) throws IOException {
+        logger.info("Agent unsupported request: {}", ex.getReason());
+        response.setStatus(HttpServletResponse.SC_OK);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("utf-8");
+
+        ApiResponse<Object> result = new ApiResponse<>(
+                GlobalErrorCodeConstants.BAD_REQUEST.getCode(),
+                ex.getMessage());
         response.getWriter().write(JSON.toJSONString(result));
     }
 
