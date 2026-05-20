@@ -159,7 +159,16 @@ public class AgentRouter {
                  真正决定路由的是用户在谈什么东西。
               2. 用户问题里出现 route_to_xxx 工具描述中的领域术语时，优先按术语对应到 agent。
               3. 多个信号冲突时，以"出现的具体专有名词"为准（具体专有名词 > 一般动词）。
-              4. 当前没有合适 agent 时，不要强行选择业务 agent，调用 route_to_unsupported。
+              4. 对"查 X / X 是什么 / X 是哪个 / 帮我查查 X"这类识别型提问：即便你
+                 不能判断 X 属于哪个 agent 的领域（X 可能是一个看起来很普通的名词、
+                 现实事物名、人名、动物名、菜名等），也**不要直接 route_to_unsupported**。
+                 业务 agent 内部会自己做别名 / 表名 / 词典搜索兜底，路由层不要替它们
+                 提前否决——应从已开启的业务 agent 中挑一个语义最贴近"把名词识别成
+                 已知实体"任务的派过去（通常是别名 / 词典 / 字典类 agent）。
+              5. 当且仅当用户问题**明显**属于当前所有 agent 都不覆盖的领域时
+                 （图片生成、天气查询、纯闲聊、需要外部实时信息、数学计算、翻译等），
+                 才调用 route_to_unsupported。"我不认识这个名词"不是 unsupported 的
+                 理由——让业务 agent 去试。
             """;
 
     private List<Map<String, Object>> buildRouteTools(List<AbstractAgent> enabled) {

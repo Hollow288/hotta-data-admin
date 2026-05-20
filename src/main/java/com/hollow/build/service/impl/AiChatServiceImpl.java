@@ -265,6 +265,121 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
+     * 异步识别图片内容。复用 text-uri (OpenAI Chat Completions 兼容) 接口，
+     * 把图片以 data URL 形式拼进 user message 的 multipart content，由具备视觉能力的对话模型返回文本描述。
+     * 一次性请求，不读写 Redis 历史。
+     *
+     * @param imageForm 图像表单，需提供 base64 data 和 mimeType，可选 message 作为提问
+     * @return 异步返回包含 AI 识别文本的响应
+     */
+    @Override
+    @Async("taskExecutor")
+    public CompletableFuture<ApiResponse<ChatForm>> recognizeImage(ImageForm imageForm) {
+        try {
+            if (imageForm == null
+                    || StringUtils.isBlank(imageForm.getData())
+                    || StringUtils.isBlank(imageForm.getMimeType())) {
+                return CompletableFuture.completedFuture(
+                        new ApiResponse<>(
+                                GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                                "图片数据或类型不能为空",
+                                null
+                        )
+                );
+            }
+
+            String question = StringUtils.isNotBlank(imageForm.getMessage())
+                    ? imageForm.getMessage()
+                    : "请描述这张图片的内容。";
+
+            String dataUrl = "data:" + imageForm.getMimeType() + ";base64," + imageForm.getData();
+
+            List<Map<String, Object>> userContent = List.of(
+                    Map.of("type", "text", "text", question),
+                    Map.of("type", "image_url", "image_url", Map.of("url", dataUrl))
+            );
+
+            List<Map<String, Object>> messages = new ArrayList<>();
+            String systemPrompt = aiConfigurationProperties.getTextDefaultPrompt();
+            if (StringUtils.isNotBlank(systemPrompt)) {
+                messages.add(Map.of("role", "system", "content", systemPrompt));
+            }
+            messages.add(Map.of("role", "user", "content", userContent));
+
+            Map<String, Object> requestBody = Map.of(
+                    "model", aiConfigurationProperties.getTextModel(),
+                    "messages", messages,
+                    "temperature", 1,
+                    "stream", false
+            );
+
+            String requestBodyJson = JSON.toJSONString(requestBody);
+
+            String thisUseKey = getMaybeAPIAvailable("chat");
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(aiConfigurationProperties.getTextUri()))
+                    .header("Authorization", "Bearer " + thisUseKey)
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .timeout(Duration.ofSeconds(120))
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            String responseBody = response.body();
+
+            if (responseBody.startsWith("[")) {
+                List<Map<String, Object>> errorList = JSON.parseObject(responseBody, new TypeReference<List<Map<String, Object>>>(){});
+                Map<String, Object> errorInfo = (Map<String, Object>) errorList.get(0).get("error");
+
+                int code = (int) errorInfo.getOrDefault("code", 0);
+                String message = (String) errorInfo.getOrDefault("message", "未知错误");
+
+                if (code == 429) {
+                    redisUtil.set("ai-limits-key:" + thisUseKey, null, 86400);
+                }
+
+                return CompletableFuture.completedFuture(
+                        new ApiResponse<>(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(), message, null)
+                );
+            }
+
+            Map<String, Object> responseMap = JSON.parseObject(responseBody, new TypeReference<Map<String, Object>>(){});
+            List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
+            Map<String, Object> messageObj = (Map<String, Object>) choices.get(0).get("message");
+            Object content = messageObj.get("content");
+
+            String reply;
+            if (content instanceof String str) {
+                reply = str;
+            } else if (content instanceof List<?> list && !list.isEmpty()) {
+                Map<String, Object> firstItem = (Map<String, Object>) list.get(0);
+                reply = (String) firstItem.getOrDefault("text", "");
+            } else {
+                reply = "";
+            }
+
+            return CompletableFuture.completedFuture(
+                    ApiResponse.success(ChatForm.builder()
+                            .memoryId(imageForm.getMemoryId())
+                            .message(reply)
+                            .build())
+            );
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return CompletableFuture.completedFuture(
+                    new ApiResponse<>(
+                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getMsg(),
+                            null
+                    )
+            );
+        }
+    }
+
+    /**
      * 清除指定会话的聊天记录，从 Redis 中删除对应的历史消息。
      *
      * @param chatForm 聊天表单，包含需要清除的会话标识 memoryId

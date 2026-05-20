@@ -39,6 +39,14 @@ public interface AiChatService {
     CompletableFuture<ApiResponse<ImageForm>> image(ImageForm imageForm);
 
     /**
+     * 识别图片内容，将图片连同提问发送给支持视觉的对话模型，异步返回文本结果
+     *
+     * @param imageForm 图像表单，需提供 base64 数据和 mimeType，可选 message 作为提问
+     * @return 包含识别文本的异步响应
+     */
+    CompletableFuture<ApiResponse<ChatForm>> recognizeImage(ImageForm imageForm);
+
+    /**
      * 删除指定的AI对话记录
      *
      * @param chatForm 聊天表单，包含待删除对话的标识信息

@@ -67,6 +67,19 @@ public class AiChatController {
         return aiChatService.image(imageForm);
     }
 
+    /**
+     * AI 图片识别接口，根据上传的图片返回文本识别结果
+     *
+     * @param imageForm 图片表单，需提供 base64 data 与 mimeType，可选 message 作为提问
+     * @return 异步返回 AI 对图片的文本描述
+     */
+    @PostMapping("/image/recognize")
+    @PublicEndpoint
+    @Operation(summary = "图片识别", description = "识别图片内容并返回文本描述")
+    public CompletableFuture<ApiResponse<ChatForm>> recognizeImage(@RequestBody ImageForm imageForm) {
+        return aiChatService.recognizeImage(imageForm);
+    }
+
 
 
     /**
