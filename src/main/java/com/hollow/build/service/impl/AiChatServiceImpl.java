@@ -88,7 +88,10 @@ public class AiChatServiceImpl implements AiChatService {
                 messages = JSON.parseObject(historyJson.toString(), new TypeReference<List<Map<String, String>>>(){});
             } else {
                 messages = new ArrayList<>();
-                messages.add(Map.of("role", "system", "content", aiConfigurationProperties.getTextDefaultPrompt()));
+                String systemPrompt = aiConfigurationProperties.getTextDefaultPrompt();
+                if (StringUtils.isNotBlank(systemPrompt)) {
+                    messages.add(Map.of("role", "system", "content", systemPrompt));
+                }
             }
 
             // 添加本次用户消息
@@ -445,7 +448,10 @@ public class AiChatServiceImpl implements AiChatService {
                     messages = JSON.parseObject(historyJson.toString(), new TypeReference<List<Map<String, String>>>(){});
                 } else {
                     messages = new ArrayList<>();
-                    messages.add(Map.of("role", "system", "content", aiConfigurationProperties.getTextDefaultPrompt()));
+                    String systemPrompt = aiConfigurationProperties.getTextDefaultPrompt();
+                    if (StringUtils.isNotBlank(systemPrompt)) {
+                        messages.add(Map.of("role", "system", "content", systemPrompt));
+                    }
                 }
 
                 messages.add(Map.of("role", "user", "content", chatForm.getMessage()));
