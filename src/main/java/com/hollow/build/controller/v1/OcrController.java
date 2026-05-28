@@ -5,18 +5,28 @@ import com.hollow.build.common.enums.GlobalErrorCodeConstants;
 import com.hollow.build.config.BypassRateLimit;
 import com.hollow.build.config.OcrConfigurationProperties;
 import com.hollow.build.config.PublicEndpoint;
+import com.hollow.build.dto.OcrTranslateImageTaskDto;
 import com.hollow.build.dto.OcrTaskDto;
 import com.hollow.build.service.OcrService;
+import com.hollow.build.service.OcrTranslateImageService;
+import com.hollow.build.service.OcrTranslateImageTaskStateService;
 import com.hollow.build.utils.LoginAttemptService;
+import com.hollow.build.utils.MinioUtil;
 import com.hollow.build.utils.RedisUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
@@ -58,9 +68,12 @@ public class OcrController {
     private static final long ONE_DAY_SECONDS = 86400L;
 
     private final OcrService ocrService;
+    private final OcrTranslateImageService ocrTranslateImageService;
+    private final OcrTranslateImageTaskStateService ocrTranslateImageTaskStateService;
     private final OcrConfigurationProperties ocrConfig;
     private final LoginAttemptService loginAttemptService;
     private final RedisUtil redisUtil;
+    private final MinioUtil minioUtil;
 
     /**
      * 提交 OCR 识别任务。
@@ -118,13 +131,94 @@ public class OcrController {
     }
 
     /**
+     * 提交 OCR 图片翻译标注任务。
+     */
+    @PostMapping(value = "/translate-image/submit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PublicEndpoint
+    @Operation(summary = "提交 OCR 图片翻译标注任务", description = "上传图片，返回任务ID，通过任务ID轮询获取结果")
+    public ApiResponse<OcrTranslateImageTaskDto> submitTranslateImage(
+            @RequestParam("file") MultipartFile file,
+            @Parameter(description = "目标语言，例如：中文 / English / 日本語")
+            @RequestParam(value = "targetLanguage", required = false, defaultValue = "中文") String targetLanguage,
+            @Parameter(description = "置信度阈值（0~1），仅翻译并标注置信度 ≥ 该值的条目")
+            @RequestParam(value = "minConfidence", required = false) Double minConfidence,
+            HttpServletRequest request) {
+//        ApiResponse<OcrTranslateImageTaskDto> rateLimited = checkDailyIpLimit(request);
+//        if (rateLimited != null) {
+//            return rateLimited;
+//        }
+        return ocrTranslateImageService.submitTask(file, targetLanguage, minConfidence);
+    }
+
+    /**
+     * 查询 OCR 图片翻译标注任务结果。
+     */
+    @GetMapping("/translate-image/result/{taskId}")
+    @BypassRateLimit
+    @PublicEndpoint
+    @Operation(summary = "查询 OCR 图片翻译标注结果", description = "状态为 PENDING/PROCESSING/SUCCESS/FAILED")
+    public ApiResponse<OcrTranslateImageTaskDto> getTranslateImageResult(@PathVariable String taskId) {
+        return ocrTranslateImageService.getResult(taskId);
+    }
+
+    /**
+     * 下载 OCR 图片翻译标注结果图。
+     */
+    @GetMapping("/translate-image/file/{taskId}")
+    @BypassRateLimit
+    @PublicEndpoint
+    @Operation(summary = "下载 OCR 图片翻译标注结果图", description = "任务成功后返回生成的 PNG 图片")
+    public ResponseEntity<?> getTranslateImageFile(@PathVariable String taskId) {
+        try {
+            OcrTranslateImageTaskDto task = ocrTranslateImageTaskStateService.getTask(taskId);
+            if (task == null) {
+                return ResponseEntity.ok(new ApiResponse<>(
+                        GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                        "任务不存在或已过期",
+                        null
+                ));
+            }
+            if (!"SUCCESS".equals(task.getStatus())) {
+                return ResponseEntity.ok(new ApiResponse<>(
+                        GlobalErrorCodeConstants.BAD_REQUEST.getCode(),
+                        "任务尚未完成，当前状态: " + task.getStatus(),
+                        null
+                ));
+            }
+            if (task.getResultBucketName() == null || task.getResultObjectName() == null) {
+                return ResponseEntity.ok(new ApiResponse<>(
+                        GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                        "结果图片不存在",
+                        null
+                ));
+            }
+
+            byte[] imageBytes;
+            try (InputStream inputStream = minioUtil.getObject(task.getResultBucketName(), task.getResultObjectName())) {
+                imageBytes = inputStream.readAllBytes();
+            }
+            String filename = URLEncoder.encode("ocr-translation.png", StandardCharsets.UTF_8);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_PNG)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + filename + "\"")
+                    .body(imageBytes);
+        } catch (Exception e) {
+            return ResponseEntity.ok(new ApiResponse<>(
+                    GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                    e.getMessage(),
+                    null
+            ));
+        }
+    }
+
+    /**
      * 校验当前 IP 当天是否已超过提交上限。
      * <p>
      * 借助 Redis INCR 原子计数：以 {@code ocr:rate-limit:{ip}:{yyyyMMdd}} 为键计数，
      * 首次创建时设置 24 小时 TTL；命中限额返回 429 业务码，否则返回 null 放行。
      * Redis 不可用或拿不到 IP 时按"放行"处理，避免因依赖故障误伤正常请求。
      */
-    private ApiResponse<OcrTaskDto> checkDailyIpLimit(HttpServletRequest request) {
+    private <T> ApiResponse<T> checkDailyIpLimit(HttpServletRequest request) {
         String ip = loginAttemptService.getClientIP(request);
         if (ip == null || ip.isBlank()) {
             return null;

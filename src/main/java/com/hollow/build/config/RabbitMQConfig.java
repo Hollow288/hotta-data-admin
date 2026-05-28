@@ -67,6 +67,33 @@ public class RabbitMQConfig {
     /** 死信路由键 */
     public static final String OCR_DEAD_ROUTING_KEY = "ocr.dead";
 
+    /** OCR 图片翻译标注交换机名称 */
+    public static final String OCR_TRANSLATE_EXCHANGE = "ocr.translate.exchange";
+
+    /** OCR 图片翻译标注主队列名称 */
+    public static final String OCR_TRANSLATE_QUEUE = "ocr.translate.queue";
+
+    /** OCR 图片翻译标注主路由键 */
+    public static final String OCR_TRANSLATE_ROUTING_KEY = "ocr.translate.task";
+
+    /** OCR 图片翻译标注重试交换机名称 */
+    public static final String OCR_TRANSLATE_RETRY_EXCHANGE = "ocr.translate.retry.exchange";
+
+    /** OCR 图片翻译标注重试队列名称 */
+    public static final String OCR_TRANSLATE_RETRY_QUEUE = "ocr.translate.retry.queue";
+
+    /** OCR 图片翻译标注重试路由键 */
+    public static final String OCR_TRANSLATE_RETRY_ROUTING_KEY = "ocr.translate.retry";
+
+    /** OCR 图片翻译标注死信交换机名称 */
+    public static final String OCR_TRANSLATE_DEAD_EXCHANGE = "ocr.translate.dead.exchange";
+
+    /** OCR 图片翻译标注死信队列名称 */
+    public static final String OCR_TRANSLATE_DEAD_QUEUE = "ocr.translate.dead.queue";
+
+    /** OCR 图片翻译标注死信路由键 */
+    public static final String OCR_TRANSLATE_DEAD_ROUTING_KEY = "ocr.translate.dead";
+
     /**
      * 声明 Direct 类型的交换机。
      * <p>
@@ -162,6 +189,61 @@ public class RabbitMQConfig {
     public Binding ocrDeadBinding(@Qualifier("ocrDeadQueue") Queue ocrDeadQueue,
                                   @Qualifier("ocrDeadExchange") DirectExchange ocrDeadExchange) {
         return BindingBuilder.bind(ocrDeadQueue).to(ocrDeadExchange).with(OCR_DEAD_ROUTING_KEY);
+    }
+
+    @Bean
+    public DirectExchange ocrTranslateExchange() {
+        return new DirectExchange(OCR_TRANSLATE_EXCHANGE);
+    }
+
+    @Bean
+    public Queue ocrTranslateQueue() {
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("x-dead-letter-exchange", OCR_TRANSLATE_DEAD_EXCHANGE);
+        arguments.put("x-dead-letter-routing-key", OCR_TRANSLATE_DEAD_ROUTING_KEY);
+        return new Queue(OCR_TRANSLATE_QUEUE, true, false, false, arguments);
+    }
+
+    @Bean
+    public Binding ocrTranslateBinding(@Qualifier("ocrTranslateQueue") Queue ocrTranslateQueue,
+                                       @Qualifier("ocrTranslateExchange") DirectExchange ocrTranslateExchange) {
+        return BindingBuilder.bind(ocrTranslateQueue).to(ocrTranslateExchange).with(OCR_TRANSLATE_ROUTING_KEY);
+    }
+
+    @Bean
+    public DirectExchange ocrTranslateRetryExchange() {
+        return new DirectExchange(OCR_TRANSLATE_RETRY_EXCHANGE);
+    }
+
+    @Bean
+    public Queue ocrTranslateRetryQueue(OcrConfigurationProperties ocrConfig) {
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("x-message-ttl", ocrConfig.getRetryDelayMillis());
+        arguments.put("x-dead-letter-exchange", OCR_TRANSLATE_EXCHANGE);
+        arguments.put("x-dead-letter-routing-key", OCR_TRANSLATE_ROUTING_KEY);
+        return new Queue(OCR_TRANSLATE_RETRY_QUEUE, true, false, false, arguments);
+    }
+
+    @Bean
+    public Binding ocrTranslateRetryBinding(@Qualifier("ocrTranslateRetryQueue") Queue ocrTranslateRetryQueue,
+                                            @Qualifier("ocrTranslateRetryExchange") DirectExchange ocrTranslateRetryExchange) {
+        return BindingBuilder.bind(ocrTranslateRetryQueue).to(ocrTranslateRetryExchange).with(OCR_TRANSLATE_RETRY_ROUTING_KEY);
+    }
+
+    @Bean
+    public DirectExchange ocrTranslateDeadExchange() {
+        return new DirectExchange(OCR_TRANSLATE_DEAD_EXCHANGE);
+    }
+
+    @Bean
+    public Queue ocrTranslateDeadQueue() {
+        return new Queue(OCR_TRANSLATE_DEAD_QUEUE, true);
+    }
+
+    @Bean
+    public Binding ocrTranslateDeadBinding(@Qualifier("ocrTranslateDeadQueue") Queue ocrTranslateDeadQueue,
+                                           @Qualifier("ocrTranslateDeadExchange") DirectExchange ocrTranslateDeadExchange) {
+        return BindingBuilder.bind(ocrTranslateDeadQueue).to(ocrTranslateDeadExchange).with(OCR_TRANSLATE_DEAD_ROUTING_KEY);
     }
 
     /**
