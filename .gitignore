@@ -35,3 +35,9 @@ build/
 ### Local dev directories ###
 /videos/
 /config/
+
+### Runtime logs (generated, never committed) ###
+/logs/
+
+### Local-only alias table (classpath fallback; not committed by design) ###
+/src/main/resources/agent/alias.json

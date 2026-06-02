@@ -4,10 +4,10 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 
-<mapper namespace="com.hollow.build.repository.mysql.BlogMapper">
+<mapper namespace="com.hollow.build.blog.BlogMapper">
 
     <!-- 统计总数 -->
-    <select id="getBlogDateMenu" resultType="com.hollow.build.dto.BlogDateMenuDto">
+    <select id="getBlogDateMenu" resultType="com.hollow.build.blog.BlogDateMenuDto">
         SELECT DATE_FORMAT(created_at, '%Y-%m') AS `year_month`, COUNT(*) AS count
         FROM blog_posts
         WHERE del_flag = '0'
@@ -25,7 +25,7 @@
     -->
 
 
-    <select id="getBlogDateListByDate" resultType="com.hollow.build.dto.BlogDateListDto">
+    <select id="getBlogDateListByDate" resultType="com.hollow.build.blog.BlogDateListDto">
         SELECT
         blog_id,
         title,
@@ -42,7 +42,7 @@
         <!-- 逻辑：时间 >= 本月1号 0点  AND 时间 < 下个月1号 0点 -->
     </select>
 
-    <select id="getBlogDateListByTag" resultType="com.hollow.build.dto.BlogDateListDto">
+    <select id="getBlogDateListByTag" resultType="com.hollow.build.blog.BlogDateListDto">
         SELECT
         blog_id,
         title,
@@ -55,7 +55,7 @@
     </select>
 
 
-    <select id="selectBlogById" resultType="com.hollow.build.entity.mysql.BlogPost">
+    <select id="selectBlogById" resultType="com.hollow.build.blog.BlogPost">
         select *  from blog_posts where del_flag = '0' and  blog_id = #{articleId}
     </select>
 
@@ -73,7 +73,7 @@
 
     -->
 
-    <select id="selectBlogByKeyWord" resultType="com.hollow.build.dto.BlogDateListDto">
+    <select id="selectBlogByKeyWord" resultType="com.hollow.build.blog.BlogDateListDto">
         SELECT
             blog_Id,
             title,
@@ -101,7 +101,7 @@
 
 
 
-    <select id="getBlogInfoByPage" resultType="com.hollow.build.dto.BlogDateListDto">
+    <select id="getBlogInfoByPage" resultType="com.hollow.build.blog.BlogDateListDto">
         SELECT * FROM blog_posts b
         WHERE del_flag = '0'
         <if test="searchName != null and searchName != ''">
@@ -111,7 +111,7 @@
     </select>
 
 
-    <insert id="addBlogPost" parameterType="com.hollow.build.entity.mysql.BlogPost" useGeneratedKeys="true" keyProperty="blogId">
+    <insert id="addBlogPost" parameterType="com.hollow.build.blog.BlogPost" useGeneratedKeys="true" keyProperty="blogId">
         INSERT INTO blog_posts
         (title, summary, content, tags, created_at)
         VALUES

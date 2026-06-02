@@ -1,7 +1,7 @@
 package com.hollow.build;
 
-import com.hollow.build.service.OcrTranslationImageRenderer;
-import com.hollow.build.service.OcrTranslationImageRenderer.OcrTextItem;
+import com.hollow.build.ocr.service.OcrTranslationImageRenderer;
+import com.hollow.build.ocr.service.OcrTranslationImageRenderer.OcrTextItem;
 import org.junit.jupiter.api.Test;
 
 import javax.imageio.ImageIO;

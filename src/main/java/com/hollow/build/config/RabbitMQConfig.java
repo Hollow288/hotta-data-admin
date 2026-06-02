@@ -1,5 +1,6 @@
 package com.hollow.build.config;
 
+import com.hollow.build.ocr.config.OcrConfigurationProperties;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
@@ -149,7 +150,8 @@ public class RabbitMQConfig {
      * 然后自动死信回主交换机并重新投递到 OCR 主队列。
      */
     @Bean
-    public Queue ocrRetryQueue(OcrConfigurationProperties ocrConfig) {
+    public Queue ocrRetryQueue(OcrConfigurationProperties
+                                           ocrConfig) {
         Map<String, Object> arguments = new HashMap<>();
         arguments.put("x-message-ttl", ocrConfig.getRetryDelayMillis());
         arguments.put("x-dead-letter-exchange", OCR_EXCHANGE);

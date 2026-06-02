@@ -13,7 +13,8 @@ import java.util.Map;
  * <p>AI 第一步通常先调它，确认有哪几种类型可选，避免编造。
  */
 @Component
-public class ListCategoriesTool implements AliasTool {
+public class
+ListCategoriesTool implements AliasTool {
 
     private final AliasDataLoader dataLoader;
 

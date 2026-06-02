@@ -2,7 +2,7 @@ package com.hollow.build.agent.core;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
-import com.hollow.build.config.AiConfigurationProperties;
+import com.hollow.build.ai.config.AiConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 import java.net.InetSocketAddress;
