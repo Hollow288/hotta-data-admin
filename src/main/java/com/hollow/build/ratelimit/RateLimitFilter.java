@@ -57,7 +57,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
 		final var unsecuredApiBeingInvoked = apiEndpointSecurityInspector.isUnsecureRequest(request);
 
 		if (unsecuredApiBeingInvoked && !pathMatcherUtils.matchAny(OpenApiConfiguration.SWAGGER_V3_PATHS, request.getRequestURI())) {
-			final var isRequestBypassed = isBypassed(request);
+			final var handlerMethod = getHandlerMethod(request);
+			final var isRequestBypassed = isBypassed(handlerMethod);
 
 			if (!isRequestBypassed) {
 				// 不再根据用户ID进行限流
@@ -72,7 +73,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
 				}
 
 				final var bucket = rateLimitingService.getBucket(apiKey);
-				final var consumptionProbe = bucket.tryConsumeAndReturnRemaining(1);
+				final var tokenCost = resolveTokenCost(handlerMethod);
+				final var consumptionProbe = bucket.tryConsumeAndReturnRemaining(tokenCost);
 				final var isConsumptionPassed = consumptionProbe.isConsumed();
 
 				if (!isConsumptionPassed) {
@@ -91,16 +93,44 @@ public class RateLimitFilter extends OncePerRequestFilter {
 	/**
 	 * 判断当前请求处理方法是否标记了跳过限流注解。
 	 *
-	 * @param request HTTP 请求对象
+	 * @param handlerMethod 当前请求处理方法
 	 * @return 已声明 {@link BypassRateLimit} 返回 true，否则返回 false
 	 */
+	private boolean isBypassed(HandlerMethod handlerMethod) {
+		return handlerMethod != null && handlerMethod.getMethod().isAnnotationPresent(BypassRateLimit.class);
+	}
+
+	/**
+	 * 获取当前请求映射到的控制器方法。
+	 *
+	 * @param request HTTP 请求对象
+	 * @return 当前请求处理方法，未匹配到控制器方法时返回 null
+	 */
 	@SneakyThrows
-	private boolean isBypassed(HttpServletRequest request) {
+	private HandlerMethod getHandlerMethod(HttpServletRequest request) {
 		var handlerChain = requestHandlerMapping.getHandler(request);
 		if (handlerChain != null && handlerChain.getHandler() instanceof HandlerMethod handlerMethod) {
-			return handlerMethod.getMethod().isAnnotationPresent(BypassRateLimit.class);
+			return handlerMethod;
 		}
-		return Boolean.FALSE;
+		return null;
+	}
+
+	/**
+	 * 获取当前接口本次请求需要消耗的令牌数。
+	 *
+	 * @param handlerMethod 当前请求处理方法
+	 * @return 正整数令牌消耗数，未声明或声明小于 1 时按 1 处理
+	 */
+	private long resolveTokenCost(HandlerMethod handlerMethod) {
+		if (handlerMethod == null) {
+			return 1L;
+		}
+
+		RateLimitCost rateLimitCost = handlerMethod.getMethodAnnotation(RateLimitCost.class);
+		if (rateLimitCost == null) {
+			return 1L;
+		}
+		return Math.max(1L, rateLimitCost.value());
 	}
 
 	/**

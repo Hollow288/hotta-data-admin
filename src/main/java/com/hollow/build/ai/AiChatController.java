@@ -6,6 +6,7 @@ import com.hollow.build.auth.config.PublicEndpoint;
 import com.hollow.build.ai.dto.ChatForm;
 import com.hollow.build.ai.dto.ImageForm;
 import com.hollow.build.ai.service.AiChatService;
+import com.hollow.build.ratelimit.RateLimitCost;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -75,6 +76,7 @@ public class AiChatController {
      */
     @PostMapping("/image/recognize")
     @PublicEndpoint
+    @RateLimitCost(2)
     @Operation(summary = "图片识别", description = "识别图片内容并返回文本描述")
     public CompletableFuture<ApiResponse<ChatForm>> recognizeImage(@RequestBody ImageForm imageForm) {
         return aiChatService.recognizeImage(imageForm);
