@@ -2,10 +2,7 @@ package com.hollow.build.hotta.news;
 
 
 import com.hollow.build.common.ApiResponse;
-import com.hollow.build.auth.config.PublicEndpoint;
-import com.hollow.build.hotta.news.EventNewsDto;
 import com.hollow.build.common.PageResult;
-import com.hollow.build.hotta.news.EventNewsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;

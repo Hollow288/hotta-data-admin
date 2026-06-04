@@ -1,6 +1,5 @@
 package com.hollow.build.hotta.news;
 
-import com.hollow.build.hotta.news.EventNewsDto;
 import com.hollow.build.common.PageResult;
 
 import java.util.Map;

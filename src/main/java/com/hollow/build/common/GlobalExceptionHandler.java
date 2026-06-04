@@ -3,7 +3,6 @@ package com.hollow.build.common;
 import com.alibaba.fastjson2.JSON;
 import com.hollow.build.agent.config.AgentDisabledException;
 import com.hollow.build.agent.config.AgentUnsupportedException;
-import com.hollow.build.common.ApiResponse;
 import com.hollow.build.common.enums.GlobalErrorCodeConstants;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;

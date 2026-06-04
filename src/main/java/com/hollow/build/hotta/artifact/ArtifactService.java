@@ -1,7 +1,5 @@
 package com.hollow.build.hotta.artifact;
 
-import com.hollow.build.hotta.artifact.ArtifactListDto;
-import com.hollow.build.hotta.artifact.Artifact;
 
 import java.util.List;
 

@@ -1,10 +1,6 @@
 package com.hollow.build.hotta.news;
 
-import com.hollow.build.hotta.news.EventNewsDto;
 import com.hollow.build.common.PageResult;
-import com.hollow.build.hotta.news.EventNews;
-import com.hollow.build.hotta.news.EventNewsMapper;
-import com.hollow.build.hotta.news.EventNewsService;
 import com.hollow.build.utils.DtoMapperUtil;
 import com.hollow.build.utils.MinioUtil;
 import lombok.RequiredArgsConstructor;

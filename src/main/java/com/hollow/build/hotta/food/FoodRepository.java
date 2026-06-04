@@ -1,6 +1,5 @@
 package com.hollow.build.hotta.food;
 
-import com.hollow.build.hotta.food.Food;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 

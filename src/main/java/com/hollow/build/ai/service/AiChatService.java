@@ -3,10 +3,8 @@ package com.hollow.build.ai.service;
 import com.hollow.build.common.ApiResponse;
 import com.hollow.build.ai.dto.ChatForm;
 import com.hollow.build.ai.dto.ImageForm;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**

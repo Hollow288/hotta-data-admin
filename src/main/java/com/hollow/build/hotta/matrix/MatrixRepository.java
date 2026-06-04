@@ -1,6 +1,5 @@
 package com.hollow.build.hotta.matrix;
 
-import com.hollow.build.hotta.matrix.Matrix;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 

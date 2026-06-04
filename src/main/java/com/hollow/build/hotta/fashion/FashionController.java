@@ -3,8 +3,6 @@ package com.hollow.build.hotta.fashion;
 import com.hollow.build.common.ApiResponse;
 import com.hollow.build.ratelimit.BypassRateLimit;
 import com.hollow.build.auth.config.PublicEndpoint;
-import com.hollow.build.hotta.fashion.Fashion;
-import com.hollow.build.hotta.fashion.FashionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;

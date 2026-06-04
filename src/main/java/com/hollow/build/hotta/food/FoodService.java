@@ -1,7 +1,5 @@
 package com.hollow.build.hotta.food;
 
-import com.hollow.build.hotta.food.FoodListDto;
-import com.hollow.build.hotta.food.Food;
 
 import java.util.List;
 

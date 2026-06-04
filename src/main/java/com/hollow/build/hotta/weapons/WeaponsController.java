@@ -3,12 +3,8 @@ package com.hollow.build.hotta.weapons;
 import com.hollow.build.common.ApiResponse;
 import com.hollow.build.ratelimit.BypassRateLimit;
 import com.hollow.build.auth.config.PublicEndpoint;
-import com.hollow.build.hotta.weapons.WeaponsListDto;
-import com.hollow.build.hotta.weapons.Weapons;
-import com.hollow.build.hotta.weapons.WeaponsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;

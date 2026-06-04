@@ -1,7 +1,5 @@
 package com.hollow.build.hotta.news;
 
-import com.hollow.build.hotta.news.EventNewsDto;
-import com.hollow.build.hotta.news.EventNews;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;

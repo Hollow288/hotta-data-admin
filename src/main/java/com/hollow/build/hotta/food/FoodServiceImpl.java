@@ -1,9 +1,5 @@
 package com.hollow.build.hotta.food;
 
-import com.hollow.build.hotta.food.FoodListDto;
-import com.hollow.build.hotta.food.Food;
-import com.hollow.build.hotta.food.FoodRepository;
-import com.hollow.build.hotta.food.FoodService;
 import com.hollow.build.utils.MinioUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;

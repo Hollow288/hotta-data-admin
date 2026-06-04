@@ -1,8 +1,5 @@
 package com.hollow.build.hotta.fashion;
 
-import com.hollow.build.hotta.fashion.Fashion;
-import com.hollow.build.hotta.fashion.FashionRepository;
-import com.hollow.build.hotta.fashion.FashionService;
 import com.hollow.build.utils.MinioUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;

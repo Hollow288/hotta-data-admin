@@ -1,6 +1,5 @@
 package com.hollow.build.hotta.fashion;
 
-import com.hollow.build.hotta.fashion.Fashion;
 
 import java.util.List;
 

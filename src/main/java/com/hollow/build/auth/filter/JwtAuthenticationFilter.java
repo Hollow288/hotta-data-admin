@@ -22,7 +22,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 

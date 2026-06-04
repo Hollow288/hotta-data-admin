@@ -1,10 +1,8 @@
 package com.hollow.build.hotta.weapons;
 
-import com.hollow.build.hotta.weapons.Weapons;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 
 /**
  * 武器（Weapons）MongoDB 数据访问接口。

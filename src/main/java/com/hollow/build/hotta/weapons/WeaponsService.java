@@ -1,7 +1,5 @@
 package com.hollow.build.hotta.weapons;
 
-import com.hollow.build.hotta.weapons.WeaponsListDto;
-import com.hollow.build.hotta.weapons.Weapons;
 
 import java.util.List;
 

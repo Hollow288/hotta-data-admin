@@ -4,7 +4,6 @@ import com.hollow.build.ocr.service.OcrTranslationImageRenderer;
 import com.hollow.build.ocr.service.OcrTranslationImageRenderer.OcrTextItem;
 import org.junit.jupiter.api.Test;
 
-import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.FontMetrics;

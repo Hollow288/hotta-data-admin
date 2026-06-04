@@ -1,7 +1,6 @@
 package com.hollow.build.ai;
 
 import com.hollow.build.common.ApiResponse;
-import com.hollow.build.ratelimit.BypassRateLimit;
 import com.hollow.build.auth.config.PublicEndpoint;
 import com.hollow.build.ai.dto.ChatForm;
 import com.hollow.build.ai.dto.ImageForm;

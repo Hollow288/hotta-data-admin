@@ -1,6 +1,5 @@
 package com.hollow.build.hotta.fashion;
 
-import com.hollow.build.hotta.fashion.Fashion;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 

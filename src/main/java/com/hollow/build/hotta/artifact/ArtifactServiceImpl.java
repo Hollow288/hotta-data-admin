@@ -1,9 +1,5 @@
 package com.hollow.build.hotta.artifact;
 
-import com.hollow.build.hotta.artifact.ArtifactListDto;
-import com.hollow.build.hotta.artifact.Artifact;
-import com.hollow.build.hotta.artifact.ArtifactRepository;
-import com.hollow.build.hotta.artifact.ArtifactService;
 import com.hollow.build.utils.MinioUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.Cacheable;

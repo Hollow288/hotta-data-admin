@@ -1,8 +1,5 @@
 package com.hollow.build.blog;
 
-import com.hollow.build.blog.BlogDateListDto;
-import com.hollow.build.blog.BlogDateMenuDto;
-import com.hollow.build.blog.BlogPost;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
