@@ -4,6 +4,7 @@ import com.hollow.build.auth.repository.UserMapper;
 import io.github.bucket4j.distributed.ExpirationAfterWriteStrategy;
 import io.github.bucket4j.distributed.serialization.Mapper;
 import io.github.bucket4j.redis.redisson.Bucket4jRedisson;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 
 import io.github.bucket4j.Bucket;
@@ -29,6 +30,15 @@ public class RateLimitingService {
 
     private final UserMapper userMapper;
     private final RedissonClient redissonClient;
+    private RedissonBasedProxyManager<String> proxyManager;
+
+    @PostConstruct
+    public void init() {
+        this.proxyManager = Bucket4jRedisson.casBasedBuilder(((Redisson) redissonClient).getCommandExecutor())
+                .expirationAfterWrite(ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(ofSeconds(7200)))
+                .keyMapper(Mapper.STRING)
+                .build();
+    }
 
     /**
      * 根据标识获取对应的限流桶，使用Redis作为分布式存储
@@ -37,11 +47,6 @@ public class RateLimitingService {
      * @return 对应的限流桶实例
      */
     public Bucket getBucket(String id) {
-
-        RedissonBasedProxyManager<String> proxyManager = Bucket4jRedisson.casBasedBuilder(((Redisson) redissonClient).getCommandExecutor())
-                .expirationAfterWrite(ExpirationAfterWriteStrategy.basedOnTimeForRefillingBucketUpToMax(ofSeconds(7200)))
-                .keyMapper(Mapper.STRING)
-                .build();
 
 //        return proxyManager.getProxy("rate-limit-" + id, () -> getConfigurationByUserId(Long.valueOf(id)));
         return proxyManager.getProxy("rate-limit-" + id, () -> getConfigurationByApiKey(id));
