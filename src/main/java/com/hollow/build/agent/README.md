@@ -27,9 +27,10 @@ agent/
 ├─ core/                       ← 框架基础件，跟具体业务无关
 │   ├─ Tool.java                  - 工具接口（任何工具实现它）
 │   ├─ ToolRegistry.java          - 把一组工具打包给 AI 用
-│   ├─ AbstractAgent.java         - "调工具循环"的通用实现
-│   ├─ AgentAiClient.java         - 真正发 HTTP 调大模型的客户端
-│   └─ AiCallOutcome.java         - 一次 AI 调用的完整结果（含元数据）
+│   └─ AbstractAgent.java         - "调工具循环"的通用实现
+│
+│   注：发 HTTP 调大模型统一走 ai/client/openai/OpenAiChatClient，
+│       返回 ai/client/openai/ChatResult（含 tokens / 原始报文等元数据）
 │
 ├─ database/                   ← 数据库 Agent 模块（自包含）
 │   ├─ DatabaseAgent.java         - 继承 AbstractAgent，写 systemPrompt
@@ -91,8 +92,8 @@ agent/
 ┌─────────────────────────────────────────────┐
 │ AgentRouter.route()                         │
 │  ① decide() —— 一次 LLM tool call 做"分类"  │
-│       AgentAiClient.complete(messages,      │
-│                              routeTools)    │  ← 只带 route_to_xxx 虚拟工具
+│       OpenAiChatClient.complete(ChatRequest │
+│              {messages, routeTools})        │  ← 只带 route_to_xxx 虚拟工具
 │       → AgentLogService.saveAiCallLog       │  ← 落明细表，agent_name="router"
 │       → 解析 tool_call 得 target=alias       │
 │  ② switch 派发到 AliasAgent                 │
@@ -104,7 +105,7 @@ agent/
 │                                             │
 │  messages = [system, user]                  │
 │  for i in 0..maxIterations:                 │
-│    ┌─ AgentAiClient.complete(messages,tools)│
+│    ┌─ OpenAiChatClient.complete(msgs,tools) │
 │    │   → AI 返回 message                    │
 │    │   → saveAiCallLog (agent_name="alias") │
 │    ├─ 若 message 含 tool_calls:             │
@@ -258,7 +259,7 @@ public ToolRegistry aliasToolRegistry(List<AliasTool> tools) {
 @Service
 public class DatabaseAgent extends AbstractAgent {
 
-    public DatabaseAgent(AgentAiClient ai,
+    public DatabaseAgent(OpenAiChatClient ai,
                          @Qualifier("databaseToolRegistry") ToolRegistry tr,  // ① 我用哪组工具
                          AgentProperties props,
                          AgentLogService log,
@@ -303,7 +304,7 @@ Router **不是** AbstractAgent 的子类，因为它不需要循环、不需要
 输出：一次 tool_call，例如 route_to_alias({"confidence":0.9,"reason":"..."})
 ```
 
-它复用 `AgentAiClient`，但调用时只注册**路由专用虚拟工具**：
+它复用 `OpenAiChatClient`，但调用时只注册**路由专用虚拟工具**：
 
 | 路由工具 | 含义 |
 |----------|------|
@@ -479,7 +480,7 @@ public ToolRegistry ocrToolRegistry(List<OcrTool> tools) {
 ```java
 @Service
 public class OcrAgent extends AbstractAgent {
-    public OcrAgent(AgentAiClient ai,
+    public OcrAgent(OpenAiChatClient ai,
                     @Qualifier("ocrToolRegistry") ToolRegistry tr,
                     AgentProperties props,
                     AgentLogService log,

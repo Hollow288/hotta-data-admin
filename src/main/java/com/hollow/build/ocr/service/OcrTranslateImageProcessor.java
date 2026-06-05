@@ -2,10 +2,14 @@ package com.hollow.build.ocr.service;
 
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
-import com.hollow.build.ai.config.AiConfigurationProperties;
+import com.hollow.build.ai.client.JsonValues;
+import com.hollow.build.ai.client.openai.ChatMessages;
+import com.hollow.build.ai.client.openai.ChatRequest;
+import com.hollow.build.ai.client.openai.ChatResult;
+import com.hollow.build.ai.client.openai.OpenAiChatClient;
 import com.hollow.build.ocr.config.OcrConfigurationProperties;
 import com.hollow.build.ocr.dto.OcrTranslatedImageResult;
-import com.hollow.build.utils.RedisUtil;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
@@ -14,13 +18,6 @@ import javax.imageio.ImageIO;
 import java.awt.geom.Point2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
-import java.net.InetSocketAddress;
-import java.net.ProxySelector;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.util.List;
 import java.util.*;
 
@@ -31,39 +28,13 @@ import java.util.*;
  */
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class OcrTranslateImageProcessor {
 
     private final OcrRemoteClient ocrRemoteClient;
     private final OcrConfigurationProperties ocrConfig;
-    private final AiConfigurationProperties aiConfig;
-    private final RedisUtil redisUtil;
     private final OcrTranslationImageRenderer imageRenderer;
-    private final HttpClient httpClient;
-
-    public OcrTranslateImageProcessor(OcrRemoteClient ocrRemoteClient,
-                                      OcrConfigurationProperties ocrConfig,
-                                      AiConfigurationProperties aiConfig,
-                                      RedisUtil redisUtil,
-                                      OcrTranslationImageRenderer imageRenderer) {
-        this.ocrRemoteClient = ocrRemoteClient;
-        this.ocrConfig = ocrConfig;
-        this.aiConfig = aiConfig;
-        this.redisUtil = redisUtil;
-        this.imageRenderer = imageRenderer;
-
-        HttpClient.Builder builder = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(40))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .version(HttpClient.Version.HTTP_2);
-
-        if (aiConfig.isProxyEnabled()) {
-            builder.proxy(ProxySelector.of(
-                    new InetSocketAddress(aiConfig.getProxyAddress(), aiConfig.getProxyPort())
-            ));
-        }
-
-        this.httpClient = builder.build();
-    }
+    private final OpenAiChatClient openAiChatClient;
 
     public OcrTranslatedImageResult process(byte[] imageBytes,
                                             String fileName,
@@ -162,28 +133,18 @@ public class OcrTranslateImageProcessor {
             return Map.of();
         }
 
-        if (StringUtils.isBlank(aiConfig.getTextUri()) || StringUtils.isBlank(aiConfig.getTextModel())) {
-            throw new IllegalStateException("AI 文本服务地址或模型未配置");
-        }
-
-        String apiKey = getMaybeApiAvailable();
-        if (StringUtils.isBlank(apiKey)) {
-            throw new IllegalStateException("AI 文本服务 API Key 未配置或均已限流");
-        }
-
         Map<Integer, String> translations = new HashMap<>();
         int batchSize = 50;
         for (int from = 0; from < detectedTexts.size(); from += batchSize) {
             int to = Math.min(from + batchSize, detectedTexts.size());
-            translations.putAll(translateBatch(detectedTexts.subList(from, to), targetLanguage, apiKey));
+            translations.putAll(translateBatch(detectedTexts.subList(from, to), targetLanguage));
         }
         detectedTexts.forEach(item -> translations.putIfAbsent(item.index(), item.text()));
         return translations;
     }
 
     private Map<Integer, String> translateBatch(List<DetectedText> detectedTexts,
-                                                String targetLanguage,
-                                                String apiKey) throws Exception {
+                                                String targetLanguage) throws Exception {
         List<Map<String, Object>> items = detectedTexts.stream()
                 .map(item -> {
                     Map<String, Object> map = new LinkedHashMap<>();
@@ -198,97 +159,26 @@ public class OcrTranslateImageProcessor {
         userPayload.put("items", items);
 
         List<Map<String, Object>> messages = List.of(
-                Map.of(
-                        "role", "system",
-                        "content", """
-                                你是 OCR 文本翻译器。把用户给出的 items[].text 翻译成 targetLanguage。
-                                必须只返回 JSON，不要返回 Markdown，不要解释。
-                                格式固定为 {"translations":[{"index":1,"text":"译文"}]}。
-                                index 必须原样返回；专有名词、数字和符号尽量保留。
-                                """
-                ),
-                Map.of(
-                        "role", "user",
-                        "content", JSON.toJSONString(userPayload)
-                )
+                ChatMessages.system("""
+                        你是 OCR 文本翻译器。把用户给出的 items[].text 翻译成 targetLanguage。
+                        必须只返回 JSON，不要返回 Markdown，不要解释。
+                        格式固定为 {"translations":[{"index":1,"text":"译文"}]}。
+                        index 必须原样返回；专有名词、数字和符号尽量保留。
+                        """),
+                ChatMessages.user(JSON.toJSONString(userPayload))
         );
 
-        Map<String, Object> requestBody = new LinkedHashMap<>();
-        requestBody.put("model", aiConfig.getTextModel());
-        requestBody.put("messages", messages);
-        requestBody.put("temperature", 0);
-        requestBody.put("stream", false);
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(aiConfig.getTextUri()))
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .timeout(Duration.ofSeconds(120))
-                .POST(HttpRequest.BodyPublishers.ofString(JSON.toJSONString(requestBody)))
-                .build();
-
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        if (response.statusCode() == 429) {
-            redisUtil.set("ai-limits-key:" + apiKey, null, 86400);
-        }
-        if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw new IllegalStateException("AI 翻译服务返回异常状态码: " + response.statusCode()
-                    + ", body=" + truncate(response.body(), 500));
+        ChatResult result = openAiChatClient.complete(
+                ChatRequest.builder()
+                        .messages(messages)
+                        .temperature(0)
+                        .timeoutSeconds(120)
+                        .build());
+        if (result.isError()) {
+            throw new IllegalStateException("AI 翻译服务返回错误: " + result.errorMessage());
         }
 
-        String translatedContent = extractChatContent(response.body(), apiKey);
-        return parseTranslationJson(translatedContent);
-    }
-
-    private String extractChatContent(String responseBody, String apiKey) {
-        String trimmedBody = responseBody == null ? "" : responseBody.trim();
-        if (trimmedBody.startsWith("[")) {
-            List<Map<String, Object>> errorList = JSON.parseObject(trimmedBody, new TypeReference<>() {});
-            if (!errorList.isEmpty() && errorList.get(0).get("error") instanceof Map<?, ?> error) {
-                markLimitedKeyIfNeeded(error, apiKey);
-                throw new IllegalStateException("AI 翻译服务返回错误: " + stringValue(error.get("message")));
-            }
-        }
-
-        Map<String, Object> responseMap = JSON.parseObject(trimmedBody, new TypeReference<>() {});
-        if (responseMap.get("error") instanceof Map<?, ?> error) {
-            markLimitedKeyIfNeeded(error, apiKey);
-            throw new IllegalStateException("AI 翻译服务返回错误: " + stringValue(error.get("message")));
-        }
-
-        Object choicesNode = responseMap.get("choices");
-        if (!(choicesNode instanceof List<?> choices) || choices.isEmpty()) {
-            throw new IllegalStateException("AI 翻译服务响应缺少 choices");
-        }
-        if (!(choices.get(0) instanceof Map<?, ?> choice)) {
-            throw new IllegalStateException("AI 翻译服务 choices 格式异常");
-        }
-        if (!(choice.get("message") instanceof Map<?, ?> message)) {
-            throw new IllegalStateException("AI 翻译服务响应缺少 message");
-        }
-
-        Object content = message.get("content");
-        if (content instanceof String text) {
-            return text;
-        }
-        if (content instanceof List<?> parts) {
-            StringBuilder sb = new StringBuilder();
-            for (Object part : parts) {
-                if (part instanceof Map<?, ?> partMap && partMap.get("text") != null) {
-                    sb.append(partMap.get("text"));
-                }
-            }
-            return sb.toString();
-        }
-        throw new IllegalStateException("AI 翻译服务响应缺少文本内容");
-    }
-
-    private void markLimitedKeyIfNeeded(Map<?, ?> error, String apiKey) {
-        Integer code = intOrNull(error.get("code"));
-        if (code != null && code == 429) {
-            redisUtil.set("ai-limits-key:" + apiKey, null, 86400);
-        }
+        return parseTranslationJson(result.content());
     }
 
     private Map<Integer, String> parseTranslationJson(String content) {
@@ -346,12 +236,12 @@ public class OcrTranslateImageProcessor {
             start = arrayStart;
             endChar = ']';
         } else {
-            throw new IllegalStateException("AI 翻译返回不是 JSON: " + truncate(content, 200));
+            throw new IllegalStateException("AI 翻译返回不是 JSON: " + JsonValues.truncate(content, 200));
         }
 
         int end = text.lastIndexOf(endChar);
         if (end < start) {
-            throw new IllegalStateException("AI 翻译返回 JSON 不完整: " + truncate(content, 200));
+            throw new IllegalStateException("AI 翻译返回 JSON 不完整: " + JsonValues.truncate(content, 200));
         }
         return text.substring(start, end + 1);
     }
@@ -372,19 +262,6 @@ public class OcrTranslateImageProcessor {
             }
         }
         return points;
-    }
-
-    private String getMaybeApiAvailable() {
-        List<String> apiKeys = aiConfig.getTextApiKey();
-        if (apiKeys == null || apiKeys.isEmpty()) {
-            return null;
-        }
-        for (String apiKey : apiKeys) {
-            if (StringUtils.isNotBlank(apiKey) && !redisUtil.hasKey("ai-limits-key:" + apiKey)) {
-                return apiKey;
-            }
-        }
-        return null;
     }
 
     private String stringValue(Object value) {
@@ -423,13 +300,6 @@ public class OcrTranslateImageProcessor {
             }
         }
         return null;
-    }
-
-    private String truncate(String value, int max) {
-        if (value == null) {
-            return null;
-        }
-        return value.length() <= max ? value : value.substring(0, max) + "...";
     }
 
     private String safeMessage(Exception exception) {

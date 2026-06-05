@@ -1,6 +1,7 @@
 package com.hollow.build.agent.core;
 
 import com.alibaba.fastjson2.JSON;
+import com.hollow.build.ai.client.openai.ChatTools;
 
 import java.util.List;
 import java.util.Map;
@@ -28,14 +29,7 @@ public class ToolRegistry {
 
     public List<Map<String, Object>> openAiFormat() {
         return toolByName.values().stream()
-                .map(t -> Map.<String, Object>of(
-                        "type", "function",
-                        "function", Map.of(
-                                "name", t.name(),
-                                "description", t.description(),
-                                "parameters", t.parametersSchema()
-                        )
-                ))
+                .map(t -> ChatTools.function(t.name(), t.description(), t.parametersSchema()))
                 .toList();
     }
 

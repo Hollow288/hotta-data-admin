@@ -5,8 +5,8 @@ import com.alibaba.fastjson2.TypeReference;
 import com.hollow.build.agent.config.AgentProperties;
 import com.hollow.build.agent.config.AgentSwitches;
 import com.hollow.build.agent.core.AbstractAgent;
-import com.hollow.build.agent.core.AgentAiClient;
 import com.hollow.build.agent.core.ToolRegistry;
+import com.hollow.build.ai.client.openai.OpenAiChatClient;
 import com.hollow.build.agent.log.AgentLogService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -34,12 +34,12 @@ public class AliasAgent extends AbstractAgent {
 
     private static final Set<String> VALID_TYPES = Set.of("武器", "意志", "源器");
 
-    public AliasAgent(AgentAiClient aiClient,
+    public AliasAgent(OpenAiChatClient openAiChatClient,
                       @Qualifier("aliasToolRegistry") ToolRegistry toolRegistry,
                       AgentProperties agentProperties,
                       AgentLogService agentLogService,
                       AgentSwitches agentSwitches) {
-        super(aiClient, toolRegistry, agentProperties, agentLogService, agentSwitches);
+        super(openAiChatClient, toolRegistry, agentProperties, agentLogService, agentSwitches);
     }
 
     @Override

@@ -1,5 +1,11 @@
 package com.hollow.build.ai.service.impl;
 
+import com.hollow.build.ai.client.gemini.GeminiImageClient;
+import com.hollow.build.ai.client.gemini.GeminiImageResult;
+import com.hollow.build.ai.client.openai.ChatMessages;
+import com.hollow.build.ai.client.openai.ChatRequest;
+import com.hollow.build.ai.client.openai.ChatResult;
+import com.hollow.build.ai.client.openai.OpenAiChatClient;
 import com.hollow.build.common.ApiResponse;
 import com.hollow.build.common.enums.GlobalErrorCodeConstants;
 import com.hollow.build.ai.config.AiConfigurationProperties;
@@ -9,60 +15,43 @@ import com.hollow.build.ai.service.AiChatService;
 import com.hollow.build.utils.RedisUtil;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.TypeReference;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.InetSocketAddress;
-import java.net.ProxySelector;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
-import java.util.*;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
  * AI 聊天服务实现类，提供文本对话、图像生成、聊天记录管理及流式对话等功能。
+ *
+ * <p>本类只负责业务编排：会话历史（Redis）、memoryId、system prompt 拼装、{@code ApiResponse} 封装、
+ * 异步与 SSE 事件编排。具体「怎么跟 AI 说话」（HTTP / 协议 / key / 限流）交给
+ * {@link OpenAiChatClient} 与 {@link GeminiImageClient}。
  */
+@Slf4j
 @Service
 public class AiChatServiceImpl implements AiChatService {
 
-    private final HttpClient httpClient;
+    private final OpenAiChatClient openAiChatClient;
+    private final GeminiImageClient geminiImageClient;
     private final AiConfigurationProperties aiConfigurationProperties;
     private final RedisUtil redisUtil;
 
-    /**
-     * 构造方法，初始化 HttpClient、Redis 工具及 AI 配置属性。
-     * 若配置了代理，则 HttpClient 会使用指定代理进行请求。
-     *
-     * @param aiConfigurationProperties AI 相关配置属性
-     * @param redisUtil Redis 工具类
-     */
-    public AiChatServiceImpl(AiConfigurationProperties aiConfigurationProperties, RedisUtil redisUtil) {
-        HttpClient.Builder builder = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(40))
-                .followRedirects(HttpClient.Redirect.NORMAL)
-                .version(HttpClient.Version.HTTP_2);
-
-        if (aiConfigurationProperties.isProxyEnabled()) {
-            ProxySelector proxySelector = ProxySelector.of(
-                    new InetSocketAddress(
-                            aiConfigurationProperties.getProxyAddress(),
-                            aiConfigurationProperties.getProxyPort()
-                    )
-            );
-            builder.proxy(proxySelector);
-        }
-
-        this.httpClient = builder.build();
-
-        this.redisUtil = redisUtil;
+    public AiChatServiceImpl(OpenAiChatClient openAiChatClient,
+                             GeminiImageClient geminiImageClient,
+                             AiConfigurationProperties aiConfigurationProperties,
+                             RedisUtil redisUtil) {
+        this.openAiChatClient = openAiChatClient;
+        this.geminiImageClient = geminiImageClient;
         this.aiConfigurationProperties = aiConfigurationProperties;
+        this.redisUtil = redisUtil;
     }
 
     /**
@@ -76,106 +65,33 @@ public class AiChatServiceImpl implements AiChatService {
     @Async("taskExecutor")
     public CompletableFuture<ApiResponse<ChatForm>> chat(ChatForm chatForm) {
         try {
-            String memoryId = chatForm.getMemoryId();
-            if (memoryId == null || memoryId.isBlank()) {
-                memoryId = UUID.randomUUID().toString();
-            }
-
-            List<Map<String, String>> messages;
+            String memoryId = resolveMemoryId(chatForm.getMemoryId());
             String redisKey = "chat:" + memoryId;
-            Object historyJson = redisUtil.get(redisKey);
-            if (historyJson != null && !historyJson.toString().isEmpty()) {
-                messages = JSON.parseObject(historyJson.toString(), new TypeReference<List<Map<String, String>>>(){});
-            } else {
-                messages = new ArrayList<>();
-                String systemPrompt = aiConfigurationProperties.getTextDefaultPrompt();
-                if (StringUtils.isNotBlank(systemPrompt)) {
-                    messages.add(Map.of("role", "system", "content", systemPrompt));
-                }
+
+            List<Map<String, Object>> messages = loadHistory(redisKey);
+            messages.add(ChatMessages.user(chatForm.getMessage()));
+
+            ChatResult result = openAiChatClient.complete(
+                    ChatRequest.builder().messages(messages).temperature(1).build());
+
+            if (result.isError()) {
+                return CompletableFuture.completedFuture(
+                        new ApiResponse<>(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                                result.errorMessage(), null));
             }
 
-            // 添加本次用户消息
-            messages.add(Map.of("role", "user", "content", chatForm.getMessage()));
+            String reply = result.content();
+            messages.add(ChatMessages.assistant(reply));
+            redisUtil.set(redisKey, JSON.toJSONString(messages), 3600);
 
-            Map<String, Object> requestBody = Map.of(
-                    "model", aiConfigurationProperties.getTextModel(),
-                    "messages", messages,
-                    "temperature", 1,
-                    "stream", false
-            );
-
-            String requestBodyJson = JSON.toJSONString(requestBody);
-
-            String thisUseKey = getMaybeAPIAvailable("chat");
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(aiConfigurationProperties.getTextUri()))
-                    .header("Authorization", "Bearer " + thisUseKey)
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .timeout(Duration.ofSeconds(60))
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            String responseBody = response.body();
-
-
-            if (responseBody.startsWith("[")) {
-                // 返回的是数组，可能是错误信息
-                List<Map<String, Object>> errorList = JSON.parseObject(responseBody, new TypeReference<List<Map<String, Object>>>(){});
-                Map<String, Object> errorInfo = (Map<String, Object>) errorList.get(0).get("error");
-
-                int code = (int) errorInfo.getOrDefault("code", 0);
-                String message = (String) errorInfo.getOrDefault("message", "未知错误");
-
-                if(code == 429){
-                    redisUtil.set("ai-limits-key:"+ thisUseKey, null, 86400);
-                }
-
-                // 这里可以直接返回失败响应
-                return CompletableFuture.completedFuture(
-                        new ApiResponse<>(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(), message, null)
-                );
-            } else {
-                // 正常返回对象
-                Map<String, Object> responseMap = JSON.parseObject(responseBody, new TypeReference<Map<String, Object>>(){});
-                List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
-                Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-                Object content = message.get("content");
-
-                String reply;
-                if (content instanceof String str) {
-                    reply = str;
-                } else if (content instanceof List<?> list && !list.isEmpty()) {
-                    Map<String, Object> firstItem = (Map<String, Object>) list.get(0);
-                    reply = (String) firstItem.getOrDefault("text", "");
-                } else {
-                    reply = "";
-                }
-
-                // 保存到 Redis
-                messages.add(Map.of("role", "assistant", "content", reply));
-                redisUtil.set(redisKey, JSON.toJSONString(messages), 3600);
-
-                return CompletableFuture.completedFuture(
-                        ApiResponse.success(ChatForm.builder()
-                                .memoryId(memoryId)
-                                .message(reply)
-                                .build())
-                );
-            }
-
-        } catch (Exception e) {
-            e.printStackTrace();
             return CompletableFuture.completedFuture(
-                    new ApiResponse<>(
-                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
-                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getMsg(),
-                            null
-                    )
-            );
+                    ApiResponse.success(ChatForm.builder()
+                            .memoryId(memoryId)
+                            .message(reply)
+                            .build()));
+        } catch (Exception e) {
+            log.error("AI 调用处理异常", e);
+            return internalError();
         }
     }
 
@@ -188,87 +104,30 @@ public class AiChatServiceImpl implements AiChatService {
     @Async("taskExecutor")
     @Override
     public CompletableFuture<ApiResponse<ImageForm>> image(ImageForm imageForm) {
-
         try {
-            String thisUseKey = getMaybeAPIAvailable("image");
-            String model = aiConfigurationProperties.getImageModel();
+            GeminiImageResult result = geminiImageClient.generateImage(
+                    imageForm.getMessage(), imageForm.getData(), imageForm.getMimeType(),
+                    imageForm.getAspectRatio());
 
-            String url = URI.create(aiConfigurationProperties.getImageUri()) + model + ":generateContent";
-
-            String jsonBody = buildImageJsonBody(imageForm);
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .header("Content-Type", "application/json")
-                    .header("x-goog-api-key", thisUseKey)
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                    .build();
-
-            System.out.println("正在向 Gemini API 发送图像生成请求...");
-            System.out.println("请求体: " + jsonBody);
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-
-            String responseBody = response.body();
-
-            if (responseBody.startsWith("[")) {
-
-                List<Map<String, Object>> errorList = JSON.parseObject(responseBody, new TypeReference<List<Map<String, Object>>>(){});
-                Map<String, Object> errorInfo = (Map<String, Object>) errorList.get(0).get("error");
-
-                int code = (int) errorInfo.getOrDefault("code", 0);
-                String message = (String) errorInfo.getOrDefault("message", "未知错误");
-
-                if(code == 429){
-                    redisUtil.set("ai-limits-key:"+ thisUseKey, null, 86400);
-                }
-
-
+            if (result.isError()) {
                 return CompletableFuture.completedFuture(
-                        new ApiResponse<>(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(), message, null)
-                );
-            } else {
-
-                Map<String, Object> responseMap = JSON.parseObject(responseBody, new TypeReference<Map<String, Object>>(){});
-                List<Map<String, Object>> candidates = (List<Map<String, Object>>) responseMap.get("candidates");
-                Map<String, Object> candidate = candidates.get(0);
-                if(candidate.get("finishReason").equals("STOP")){
-                    Map<String, Object> content = (Map<String, Object>)candidate.get("content");
-                    List<Map<String, Object>> parts = (List<Map<String, Object>>) (content.get("parts"));
-                    Map<String, Object> part = (Map<String, Object>) parts.get(0);
-                    Map<String,String> inlineData = (Map<String, String>) part.get("inlineData");
-                    return CompletableFuture.completedFuture(
-                            ApiResponse.success(ImageForm.builder()
-                                    .data(inlineData.get("data"))
-                                    .mimeType(inlineData.get("mimeType"))
-                                    .build())
-                    );
-                }else{
-                    return CompletableFuture.completedFuture(
-                            new ApiResponse<>(
-                                    GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
-                                    candidate.get("finishReason").toString(),
-                                    null
-                            )
-                    );
-                }
-
+                        new ApiResponse<>(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                                result.errorMessage(), null));
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+
             return CompletableFuture.completedFuture(
-                    new ApiResponse<>(
-                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
-                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getMsg(),
-                            null
-                    )
-            );
+                    ApiResponse.success(ImageForm.builder()
+                            .data(result.data())
+                            .mimeType(result.mimeType())
+                            .build()));
+        } catch (Exception e) {
+            log.error("AI 调用处理异常", e);
+            return internalError();
         }
     }
 
     /**
-     * 异步识别图片内容。复用 text-uri (OpenAI Chat Completions 兼容) 接口，
+     * 异步识别图片内容。复用 text 模型（OpenAI Chat Completions 兼容）接口，
      * 把图片以 data URL 形式拼进 user message 的 multipart content，由具备视觉能力的对话模型返回文本描述。
      * 一次性请求，不读写 Redis 历史。
      *
@@ -283,102 +142,38 @@ public class AiChatServiceImpl implements AiChatService {
                     || StringUtils.isBlank(imageForm.getData())
                     || StringUtils.isBlank(imageForm.getMimeType())) {
                 return CompletableFuture.completedFuture(
-                        new ApiResponse<>(
-                                GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
-                                "图片数据或类型不能为空",
-                                null
-                        )
-                );
+                        new ApiResponse<>(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                                "图片数据或类型不能为空", null));
             }
 
             String question = StringUtils.isNotBlank(imageForm.getMessage())
                     ? imageForm.getMessage()
                     : "请描述这张图片的内容。";
 
-            String dataUrl = "data:" + imageForm.getMimeType() + ";base64," + imageForm.getData();
-
-            List<Map<String, Object>> userContent = List.of(
-                    Map.of("type", "text", "text", question),
-                    Map.of("type", "image_url", "image_url", Map.of("url", dataUrl))
-            );
-
             List<Map<String, Object>> messages = new ArrayList<>();
             String systemPrompt = aiConfigurationProperties.getTextDefaultPrompt();
             if (StringUtils.isNotBlank(systemPrompt)) {
-                messages.add(Map.of("role", "system", "content", systemPrompt));
+                messages.add(ChatMessages.system(systemPrompt));
             }
-            messages.add(Map.of("role", "user", "content", userContent));
+            messages.add(ChatMessages.userWithImage(question, imageForm.getMimeType(), imageForm.getData()));
 
-            Map<String, Object> requestBody = Map.of(
-                    "model", aiConfigurationProperties.getTextModel(),
-                    "messages", messages,
-                    "temperature", 1,
-                    "stream", false
-            );
+            ChatResult result = openAiChatClient.complete(
+                    ChatRequest.builder().messages(messages).temperature(1).timeoutSeconds(120).build());
 
-            String requestBodyJson = JSON.toJSONString(requestBody);
-
-            String thisUseKey = getMaybeAPIAvailable("chat");
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(aiConfigurationProperties.getTextUri()))
-                    .header("Authorization", "Bearer " + thisUseKey)
-                    .header("Content-Type", "application/json")
-                    .header("Accept", "application/json")
-                    .timeout(Duration.ofSeconds(120))
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBodyJson))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            String responseBody = response.body();
-
-            if (responseBody.startsWith("[")) {
-                List<Map<String, Object>> errorList = JSON.parseObject(responseBody, new TypeReference<List<Map<String, Object>>>(){});
-                Map<String, Object> errorInfo = (Map<String, Object>) errorList.get(0).get("error");
-
-                int code = (int) errorInfo.getOrDefault("code", 0);
-                String message = (String) errorInfo.getOrDefault("message", "未知错误");
-
-                if (code == 429) {
-                    redisUtil.set("ai-limits-key:" + thisUseKey, null, 86400);
-                }
-
+            if (result.isError()) {
                 return CompletableFuture.completedFuture(
-                        new ApiResponse<>(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(), message, null)
-                );
-            }
-
-            Map<String, Object> responseMap = JSON.parseObject(responseBody, new TypeReference<Map<String, Object>>(){});
-            List<Map<String, Object>> choices = (List<Map<String, Object>>) responseMap.get("choices");
-            Map<String, Object> messageObj = (Map<String, Object>) choices.get(0).get("message");
-            Object content = messageObj.get("content");
-
-            String reply;
-            if (content instanceof String str) {
-                reply = str;
-            } else if (content instanceof List<?> list && !list.isEmpty()) {
-                Map<String, Object> firstItem = (Map<String, Object>) list.get(0);
-                reply = (String) firstItem.getOrDefault("text", "");
-            } else {
-                reply = "";
+                        new ApiResponse<>(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                                result.errorMessage(), null));
             }
 
             return CompletableFuture.completedFuture(
                     ApiResponse.success(ChatForm.builder()
                             .memoryId(imageForm.getMemoryId())
-                            .message(reply)
-                            .build())
-            );
-
+                            .message(result.content())
+                            .build()));
         } catch (Exception e) {
-            e.printStackTrace();
-            return CompletableFuture.completedFuture(
-                    new ApiResponse<>(
-                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
-                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getMsg(),
-                            null
-                    )
-            );
+            log.error("AI 调用处理异常", e);
+            return internalError();
         }
     }
 
@@ -390,17 +185,12 @@ public class AiChatServiceImpl implements AiChatService {
      */
     @Override
     public CompletableFuture<ApiResponse<ChatForm>> remove(ChatForm chatForm) {
-        String memoryId = null;
         try {
-            memoryId = chatForm.getMemoryId();
+            String memoryId = chatForm.getMemoryId();
             if (memoryId == null || memoryId.isBlank()) {
                 return CompletableFuture.completedFuture(
-                        new ApiResponse<>(
-                                GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
-                                "未找到对应的临时聊天记录",
-                                null
-                        )
-                );
+                        new ApiResponse<>(GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                                "未找到对应的临时聊天记录", null));
             }
             redisUtil.removeKey("chat:" + memoryId);
 
@@ -408,18 +198,10 @@ public class AiChatServiceImpl implements AiChatService {
                     ApiResponse.success(ChatForm.builder()
                             .memoryId(memoryId)
                             .message("清理成功")
-                            .build())
-            );
-
+                            .build()));
         } catch (Exception e) {
-            e.printStackTrace();
-            return CompletableFuture.completedFuture(
-                    new ApiResponse<>(
-                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
-                            GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getMsg(),
-                            null
-                    )
-            );
+            log.error("AI 调用处理异常", e);
+            return internalError();
         }
     }
 
@@ -436,75 +218,30 @@ public class AiChatServiceImpl implements AiChatService {
 
         CompletableFuture.runAsync(() -> {
             try {
-                String memoryId = chatForm.getMemoryId();
-                if (memoryId == null || memoryId.isBlank()) {
-                    memoryId = UUID.randomUUID().toString();
-                }
-
-                List<Map<String, String>> messages;
+                String memoryId = resolveMemoryId(chatForm.getMemoryId());
                 String redisKey = "chat:" + memoryId;
-                Object historyJson = redisUtil.get(redisKey);
-                if (historyJson != null && !historyJson.toString().isEmpty()) {
-                    messages = JSON.parseObject(historyJson.toString(), new TypeReference<List<Map<String, String>>>(){});
-                } else {
-                    messages = new ArrayList<>();
-                    String systemPrompt = aiConfigurationProperties.getTextDefaultPrompt();
-                    if (StringUtils.isNotBlank(systemPrompt)) {
-                        messages.add(Map.of("role", "system", "content", systemPrompt));
-                    }
-                }
 
-                messages.add(Map.of("role", "user", "content", chatForm.getMessage()));
-
-                Map<String, Object> requestBody = Map.of(
-                        "model", aiConfigurationProperties.getTextModel(),
-                        "messages", messages,
-                        "temperature", 1,
-                        "stream", true
-                );
-
-                String thisUseKey = getMaybeAPIAvailable("chat");
-
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(aiConfigurationProperties.getTextUri()))
-                        .header("Authorization", "Bearer " + thisUseKey)
-                        .header("Content-Type", "application/json")
-                        .timeout(Duration.ofSeconds(60))
-                        .POST(HttpRequest.BodyPublishers.ofString(JSON.toJSONString(requestBody)))
-                        .build();
+                List<Map<String, Object>> messages = loadHistory(redisKey);
+                messages.add(ChatMessages.user(chatForm.getMessage()));
 
                 StringBuilder fullReply = new StringBuilder();
-                String finalMemoryId = memoryId;
+                emitter.send(SseEmitter.event().data(Map.of("memoryId", memoryId)));
 
-                emitter.send(SseEmitter.event().data(Map.of("memoryId", finalMemoryId)));
-
-                HttpResponse<java.io.InputStream> response = httpClient.send(request, HttpResponse.BodyHandlers.ofInputStream());
-                BufferedReader reader = new BufferedReader(new InputStreamReader(response.body()));
-
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (line.startsWith("data: ")) {
-                        String data = line.substring(6);
-                        if ("[DONE]".equals(data)) break;
-
-                        Map<String, Object> chunk = JSON.parseObject(data, new TypeReference<Map<String, Object>>(){});
-                        List<Map<String, Object>> choices = (List<Map<String, Object>>) chunk.get("choices");
-                        if (choices != null && !choices.isEmpty()) {
-                            Map<String, Object> delta = (Map<String, Object>) choices.get(0).get("delta");
-                            if (delta != null && delta.containsKey("content")) {
-                                String content = (String) delta.get("content");
-                                fullReply.append(content);
-                                emitter.send(SseEmitter.event().data(Map.of("content", content)));
+                openAiChatClient.stream(
+                        ChatRequest.builder().messages(messages).temperature(1).build(),
+                        delta -> {
+                            fullReply.append(delta);
+                            try {
+                                emitter.send(SseEmitter.event().data(Map.of("content", delta)));
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
                             }
-                        }
-                    }
-                }
+                        });
 
-                messages.add(Map.of("role", "assistant", "content", fullReply.toString()));
+                messages.add(ChatMessages.assistant(fullReply.toString()));
                 redisUtil.set(redisKey, JSON.toJSONString(messages), 3600);
 
                 emitter.complete();
-
             } catch (Exception e) {
                 emitter.completeWithError(e);
             }
@@ -513,101 +250,30 @@ public class AiChatServiceImpl implements AiChatService {
         return emitter;
     }
 
-
-    /**
-     * 从配置的 API Key 列表中获取一个当前可用的 Key。
-     * 已被限流的 Key 会在 Redis 中标记，将被跳过。
-     *
-     * @param apiKeyType API Key 类型，"chat" 表示文本聊天，"image" 表示图像生成
-     * @return 可用的 API Key，若全部不可用则返回 null
-     */
-    private String getMaybeAPIAvailable(String apiKeyType){
-        List<String> apiKeys = List.of();
-        if(apiKeyType.equals("chat")){
-            apiKeys = aiConfigurationProperties.getTextApiKey();
-        }
-
-        if(apiKeyType.equals("image")){
-            apiKeys = aiConfigurationProperties.getImageApiKey();
-        }
-
-        for (String apiKey : apiKeys) {
-            if(!redisUtil.hasKey("ai-limits-key:" + apiKey)){
-                return apiKey;
-            }
-        }
-        return null;
+    /** 生成或沿用 memoryId。 */
+    private String resolveMemoryId(String memoryId) {
+        return (memoryId == null || memoryId.isBlank()) ? UUID.randomUUID().toString() : memoryId;
     }
 
-
-    /**
-     * 构建 Gemini 图像生成 API 的 JSON 请求体。
-     *
-     * @param imageForm 图像表单，包含提示文本和可选的参考图片
-     * @return JSON 格式的请求体字符串
-     */
-    private String buildImageJsonBody(ImageForm imageForm) {
-        // part 内容
-        Map<String, Object> userPart = new HashMap<>();
-        Map<String, Object> userContent = new HashMap<>();
-        userPart.put("text", escapeJson(imageForm.getMessage()));
-
-        if(StringUtils.isNotBlank(imageForm.getData())){
-            Map<String, String> userImageData = new HashMap<>();
-
-            userImageData.put("mime_type", imageForm.getMimeType());
-            userImageData.put("data", imageForm.getData());
-
-            Map<String, Object> inlineData = new HashMap<>();
-            inlineData.put("inline_data", userImageData);
-
-            userContent.put("parts", List.of(userPart, inlineData));
-
-        }else{
-            userContent.put("parts", List.of(userPart));
+    /** 从 Redis 读取会话历史；无历史时初始化并按需带上 system prompt。 */
+    private List<Map<String, Object>> loadHistory(String redisKey) {
+        Object historyJson = redisUtil.get(redisKey);
+        if (historyJson != null && !historyJson.toString().isEmpty()) {
+            return JSON.parseObject(historyJson.toString(), new TypeReference<List<Map<String, Object>>>() {});
         }
-
-        // contents -> parts
-
-        userContent.put("role", "user");
-
-        Map<String, Object> adminPart = new HashMap<>();
-        adminPart.put("text",aiConfigurationProperties.getImageDefaultPrompt());
-        Map<String, Object> adminContent = new HashMap<>();
-        adminContent.put("parts", List.of(adminPart));
-        adminContent.put("role", "model");
-
-
-        // imageConfig
-        Map<String, Object> imageConfig = new HashMap<>();
-        imageConfig.put("aspectRatio", "9:16");
-
-        // generationConfig
-        Map<String, Object> generationConfig = new HashMap<>();
-        generationConfig.put("responseModalities", List.of("IMAGE"));
-        generationConfig.put("imageConfig", imageConfig);
-
-        // 根对象
-        Map<String, Object> root = new HashMap<>();
-//        root.put("contents", List.of(adminContent,userContent));
-        root.put("contents", List.of(userContent));
-        root.put("generationConfig", generationConfig);
-
-        // 转 JSON 字符串
-        return JSON.toJSONString(root);
+        List<Map<String, Object>> messages = new ArrayList<>();
+        String systemPrompt = aiConfigurationProperties.getTextDefaultPrompt();
+        if (StringUtils.isNotBlank(systemPrompt)) {
+            messages.add(ChatMessages.system(systemPrompt));
+        }
+        return messages;
     }
 
-
-    /**
-     * 对字符串中的特殊字符进行转义，以确保 JSON 格式正确。
-     */
-    private static String escapeJson(String str) {
-        return str.replace("\\", "\\\\")
-                .replace("\"", "\\\"")
-                .replace("\b", "\\b")
-                .replace("\f", "\\f")
-                .replace("\n", "\\n")
-                .replace("\r", "\\r")
-                .replace("\t", "\\t");
+    private <T> CompletableFuture<ApiResponse<T>> internalError() {
+        return CompletableFuture.completedFuture(
+                new ApiResponse<>(
+                        GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getCode(),
+                        GlobalErrorCodeConstants.INTERNAL_SERVER_ERROR.getMsg(),
+                        null));
     }
 }

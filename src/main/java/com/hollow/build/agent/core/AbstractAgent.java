@@ -7,6 +7,10 @@ import com.hollow.build.agent.config.AgentSwitches;
 import com.hollow.build.agent.entity.AgentAiCallLog;
 import com.hollow.build.agent.entity.AgentRequestLog;
 import com.hollow.build.agent.log.AgentLogService;
+import com.hollow.build.ai.client.openai.ChatMessages;
+import com.hollow.build.ai.client.openai.ChatRequest;
+import com.hollow.build.ai.client.openai.ChatResult;
+import com.hollow.build.ai.client.openai.OpenAiChatClient;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -29,18 +33,18 @@ import java.util.UUID;
  */
 public abstract class AbstractAgent {
 
-    protected final AgentAiClient aiClient;
+    protected final OpenAiChatClient openAiChatClient;
     protected final ToolRegistry toolRegistry;
     protected final AgentProperties agentProperties;
     protected final AgentLogService agentLogService;
     protected final AgentSwitches agentSwitches;
 
-    protected AbstractAgent(AgentAiClient aiClient,
+    protected AbstractAgent(OpenAiChatClient openAiChatClient,
                             ToolRegistry toolRegistry,
                             AgentProperties agentProperties,
                             AgentLogService agentLogService,
                             AgentSwitches agentSwitches) {
-        this.aiClient = aiClient;
+        this.openAiChatClient = openAiChatClient;
         this.toolRegistry = toolRegistry;
         this.agentProperties = agentProperties;
         this.agentLogService = agentLogService;
@@ -125,8 +129,8 @@ public abstract class AbstractAgent {
 
         long askStart = System.currentTimeMillis();
         List<Map<String, Object>> messages = new ArrayList<>();
-        messages.add(Map.of("role", "system", "content", systemPrompt()));
-        messages.add(Map.of("role", "user", "content", userMessage));
+        messages.add(ChatMessages.system(systemPrompt()));
+        messages.add(ChatMessages.user(userMessage));
 
         List<Map<String, Object>> traceEntries = new ArrayList<>();
         List<String> traceForUi = new ArrayList<>();
@@ -143,14 +147,19 @@ public abstract class AbstractAgent {
             for (int i = 0; i < agentProperties.getMaxIterations(); i++) {
                 iterations = i + 1;
 
-                AiCallOutcome outcome = aiClient.complete(messages, toolRegistry.openAiFormat());
+                ChatResult outcome = openAiChatClient.complete(
+                        ChatRequest.builder()
+                                .messages(messages)
+                                .tools(toolRegistry.openAiFormat())
+                                .temperature(0.2)
+                                .build());
 
                 model = outcome.model();
                 if (outcome.totalTokens() != null) {
                     totalTokens += outcome.totalTokens();
                 }
 
-                agentLogService.saveAiCallLog(toCallLog(outcome, requestId, agentName(), i));
+                agentLogService.saveAiCallLog(AgentAiCallLog.from(outcome, requestId, agentName(), i));
 
                 if (outcome.errorMessage() != null) {
                     status = "ERROR";
@@ -236,26 +245,6 @@ public abstract class AbstractAgent {
     private AgentResult buildResult(String reply, List<String> traceForUi) {
         Object data = answerData(reply);
         return new AgentResult(agentName(), answerText(reply, data), data, traceForUi);
-    }
-
-    private static AgentAiCallLog toCallLog(AiCallOutcome outcome, String requestId,
-                                            String agentName, int iterationIndex) {
-        AgentAiCallLog log = new AgentAiCallLog();
-        log.setRequestId(requestId);
-        log.setAgentName(agentName);
-        log.setIterationIndex(iterationIndex);
-        log.setModel(outcome.model());
-        log.setRequestBody(outcome.requestBody());
-        log.setResponseBody(outcome.responseBody());
-        log.setHttpStatus(outcome.httpStatus());
-        log.setPromptTokens(outcome.promptTokens());
-        log.setCompletionTokens(outcome.completionTokens());
-        log.setTotalTokens(outcome.totalTokens());
-        log.setToolCallCount(outcome.toolCallCount());
-        log.setFinishReason(outcome.finishReason());
-        log.setDurationMs(outcome.durationMs());
-        log.setErrorMessage(outcome.errorMessage());
-        return log;
     }
 
     private static Map<String, Object> sanitizeAssistantMessage(Map<String, Object> aiMessage) {

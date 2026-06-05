@@ -1,5 +1,6 @@
 package com.hollow.build.agent.entity;
 
+import com.hollow.build.ai.client.openai.ChatResult;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -62,4 +63,29 @@ public class AgentAiCallLog implements Serializable {
 
     /** 创建时间 */
     private LocalDateTime createTime;
+
+    /**
+     * 由一次 {@link ChatResult} 构造调用日志。
+     *
+     * <p>{@code AbstractAgent} 主循环与 {@code AgentRouter} 原本各抄一份相同的字段拷贝，
+     * 收敛到这个工厂；router 的轮次固定传 0。
+     */
+    public static AgentAiCallLog from(ChatResult result, String requestId, String agentName, int iterationIndex) {
+        AgentAiCallLog log = new AgentAiCallLog();
+        log.setRequestId(requestId);
+        log.setAgentName(agentName);
+        log.setIterationIndex(iterationIndex);
+        log.setModel(result.model());
+        log.setRequestBody(result.requestBody());
+        log.setResponseBody(result.responseBody());
+        log.setHttpStatus(result.httpStatus());
+        log.setPromptTokens(result.promptTokens());
+        log.setCompletionTokens(result.completionTokens());
+        log.setTotalTokens(result.totalTokens());
+        log.setToolCallCount(result.toolCallCount());
+        log.setFinishReason(result.finishReason());
+        log.setDurationMs(result.durationMs());
+        log.setErrorMessage(result.errorMessage());
+        return log;
+    }
 }

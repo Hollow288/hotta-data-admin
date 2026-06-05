@@ -5,10 +5,14 @@ import com.alibaba.fastjson2.JSONObject;
 import com.hollow.build.agent.config.AgentSwitches;
 import com.hollow.build.agent.config.AgentUnsupportedException;
 import com.hollow.build.agent.core.AbstractAgent;
-import com.hollow.build.agent.core.AgentAiClient;
-import com.hollow.build.agent.core.AiCallOutcome;
 import com.hollow.build.agent.entity.AgentAiCallLog;
 import com.hollow.build.agent.log.AgentLogService;
+import com.hollow.build.ai.client.JsonValues;
+import com.hollow.build.ai.client.openai.ChatMessages;
+import com.hollow.build.ai.client.openai.ChatRequest;
+import com.hollow.build.ai.client.openai.ChatResult;
+import com.hollow.build.ai.client.openai.ChatTools;
+import com.hollow.build.ai.client.openai.OpenAiChatClient;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -32,18 +36,18 @@ public class AgentRouter {
     private static final String ROUTE_PREFIX = "route_to_";
     public static final String UNSUPPORTED_TARGET = "unsupported";
 
-    private final AgentAiClient aiClient;
+    private final OpenAiChatClient openAiChatClient;
     private final AgentLogService agentLogService;
     private final AgentSwitches agentSwitches;
 
     /** agentName -> bean。LinkedHashMap 保留注入顺序，影响 prompt 中的展示顺序。 */
     private final Map<String, AbstractAgent> agentsByName;
 
-    public AgentRouter(AgentAiClient aiClient,
+    public AgentRouter(OpenAiChatClient openAiChatClient,
                        AgentLogService agentLogService,
                        AgentSwitches agentSwitches,
                        List<AbstractAgent> agents) {
-        this.aiClient = aiClient;
+        this.openAiChatClient = openAiChatClient;
         this.agentLogService = agentLogService;
         this.agentSwitches = agentSwitches;
         this.agentsByName = agents.stream().collect(Collectors.toMap(
@@ -92,12 +96,18 @@ public class AgentRouter {
 
     private RouteDecision decide(String userMessage, String requestId, List<AbstractAgent> enabled) throws Exception {
         List<Map<String, Object>> messages = List.of(
-                Map.of("role", "system", "content", buildRouterPrompt(enabled)),
-                Map.of("role", "user", "content", userMessage)
+                ChatMessages.system(buildRouterPrompt(enabled)),
+                ChatMessages.user(userMessage)
         );
 
-        AiCallOutcome outcome = aiClient.complete(messages, buildRouteTools(enabled), "required");
-        agentLogService.saveAiCallLog(toCallLog(outcome, requestId));
+        ChatResult outcome = openAiChatClient.complete(
+                ChatRequest.builder()
+                        .messages(messages)
+                        .tools(buildRouteTools(enabled))
+                        .toolChoice("required")
+                        .temperature(0.2)
+                        .build());
+        agentLogService.saveAiCallLog(AgentAiCallLog.from(outcome, requestId, ROUTER_NAME, 0));
 
         if (outcome.errorMessage() != null) {
             throw new IllegalStateException("路由 LLM 调用失败: " + outcome.errorMessage());
@@ -200,14 +210,7 @@ public class AgentRouter {
     }
 
     private static Map<String, Object> tool(String name, String description) {
-        return Map.of(
-                "type", "function",
-                "function", Map.of(
-                        "name", name,
-                        "description", description,
-                        "parameters", routeParametersSchema()
-                )
-        );
+        return ChatTools.function(name, description, routeParametersSchema());
     }
 
     private static Map<String, Object> routeParametersSchema() {
@@ -249,13 +252,13 @@ public class AgentRouter {
             throw new IllegalStateException("路由 tool_call 缺少 function: " + JSON.toJSONString(first));
         }
 
-        String functionName = asString(function.get("name"));
+        String functionName = JsonValues.asString(function.get("name"));
         String target = parseTarget(functionName);
         if (!UNSUPPORTED_TARGET.equals(target) && enabled.stream().noneMatch(a -> a.agentName().equals(target))) {
             throw new IllegalStateException("路由目标不在当前开启列表中: " + target);
         }
 
-        String arguments = asString(function.get("arguments"));
+        String arguments = JsonValues.asString(function.get("arguments"));
         JSONObject args = arguments == null || arguments.isBlank()
                 ? new JSONObject()
                 : JSON.parseObject(arguments);
@@ -280,26 +283,4 @@ public class AgentRouter {
         return target;
     }
 
-    private static String asString(Object o) {
-        return o == null ? null : o.toString();
-    }
-
-    private static AgentAiCallLog toCallLog(AiCallOutcome outcome, String requestId) {
-        AgentAiCallLog log = new AgentAiCallLog();
-        log.setRequestId(requestId);
-        log.setAgentName(ROUTER_NAME);
-        log.setIterationIndex(0);
-        log.setModel(outcome.model());
-        log.setRequestBody(outcome.requestBody());
-        log.setResponseBody(outcome.responseBody());
-        log.setHttpStatus(outcome.httpStatus());
-        log.setPromptTokens(outcome.promptTokens());
-        log.setCompletionTokens(outcome.completionTokens());
-        log.setTotalTokens(outcome.totalTokens());
-        log.setToolCallCount(outcome.toolCallCount());
-        log.setFinishReason(outcome.finishReason());
-        log.setDurationMs(outcome.durationMs());
-        log.setErrorMessage(outcome.errorMessage());
-        return log;
-    }
 }

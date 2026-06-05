@@ -3,8 +3,8 @@ package com.hollow.build.agent.database;
 import com.hollow.build.agent.config.AgentProperties;
 import com.hollow.build.agent.config.AgentSwitches;
 import com.hollow.build.agent.core.AbstractAgent;
-import com.hollow.build.agent.core.AgentAiClient;
 import com.hollow.build.agent.core.ToolRegistry;
+import com.hollow.build.ai.client.openai.OpenAiChatClient;
 import com.hollow.build.agent.log.AgentLogService;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -19,12 +19,12 @@ import java.util.List;
 @Service
 public class DatabaseAgent extends AbstractAgent {
 
-    public DatabaseAgent(AgentAiClient aiClient,
+    public DatabaseAgent(OpenAiChatClient openAiChatClient,
                          @Qualifier("databaseToolRegistry") ToolRegistry toolRegistry,
                          AgentProperties agentProperties,
                          AgentLogService agentLogService,
                          AgentSwitches agentSwitches) {
-        super(aiClient, toolRegistry, agentProperties, agentLogService, agentSwitches);
+        super(openAiChatClient, toolRegistry, agentProperties, agentLogService, agentSwitches);
     }
 
     @Override
