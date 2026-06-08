@@ -25,7 +25,7 @@ public class AiConfigurationProperties {
     /** 文本生成使用的模型名称 */
     private String textModel;
 
-    /** 文本 AI 服务的请求地址 */
+    /** 文本 AI 服务的请求地址，通常是 OpenAI 兼容的完整 /v1/chat/completions 地址 */
     private String textUri;
 
     /** 图像 AI 服务的 API Key 列表 */
@@ -37,7 +37,7 @@ public class AiConfigurationProperties {
     /** 图像生成使用的模型名称 */
     private String imageModel;
 
-    /** 图像 AI 服务的请求地址 */
+    /** 图像 AI 服务的请求地址前缀，Gemini 客户端会在后面拼接 model + ":generateContent" */
     private String imageUri;
 
     /** 代理服务器地址 */

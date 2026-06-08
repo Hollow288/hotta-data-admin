@@ -70,6 +70,7 @@ public class GeminiImageClient {
 
         try {
             String model = aiConfigurationProperties.getImageModel();
+            // imageUri 配到 /models/ 前缀，Gemini generateContent URL 需要追加 {model}:generateContent。
             String url = URI.create(aiConfigurationProperties.getImageUri()) + model + ":generateContent";
             String jsonBody = buildJsonBody(prompt, refImageBase64, refImageMimeType, aspectRatio);
 
@@ -85,6 +86,7 @@ public class GeminiImageClient {
             String responseBody = response.body();
 
             if (responseBody != null && responseBody.trim().startsWith("[")) {
+                // 兼容部分代理网关把错误包装成数组返回的情况：[{"error": {...}}]。
                 List<Map<String, Object>> errorList = JSON.parseObject(responseBody, new TypeReference<>() {});
                 @SuppressWarnings("unchecked")
                 Map<String, Object> errorInfo = errorList.isEmpty()
@@ -107,6 +109,7 @@ public class GeminiImageClient {
             Map<String, Object> candidate = candidates.get(0);
             String finishReason = JsonValues.asString(candidate.get("finishReason"));
             if (!"STOP".equals(finishReason)) {
+                // 非 STOP 通常代表安全策略、截断或其他上游终止原因；此时不应当继续尝试取图片数据。
                 return GeminiImageResult.failure(finishReason, String.valueOf(finishReason));
             }
 
@@ -145,6 +148,7 @@ public class GeminiImageClient {
 
         Map<String, Object> userContent = new HashMap<>();
         if (StringUtils.isNotBlank(refImageBase64)) {
+            // 请求体使用 Gemini 的 inline_data 蛇形命名；响应解析处对应的是 inlineData 驼峰命名。
             Map<String, String> imageData = new HashMap<>();
             imageData.put("mime_type", refImageMimeType);
             imageData.put("data", refImageBase64);
@@ -162,6 +166,7 @@ public class GeminiImageClient {
         imageConfig.put("aspectRatio", StringUtils.isNotBlank(aspectRatio) ? aspectRatio : DEFAULT_ASPECT_RATIO);
 
         Map<String, Object> generationConfig = new HashMap<>();
+        // 明确只要 IMAGE 模态，避免模型返回一段文字说明而不是图片。
         generationConfig.put("responseModalities", List.of("IMAGE"));
         generationConfig.put("imageConfig", imageConfig);
 

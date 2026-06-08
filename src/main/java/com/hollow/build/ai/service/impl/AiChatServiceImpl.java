@@ -68,6 +68,7 @@ public class AiChatServiceImpl implements AiChatService {
             String memoryId = resolveMemoryId(chatForm.getMemoryId());
             String redisKey = "chat:" + memoryId;
 
+            // 多轮对话依赖完整 messages 历史：先还原 Redis 历史，再把本轮用户消息追加到末尾。
             List<Map<String, Object>> messages = loadHistory(redisKey);
             messages.add(ChatMessages.user(chatForm.getMessage()));
 
@@ -82,6 +83,7 @@ public class AiChatServiceImpl implements AiChatService {
 
             String reply = result.content();
             messages.add(ChatMessages.assistant(reply));
+            // 只在 AI 成功返回后写回历史，避免把失败请求或空回复污染后续上下文。
             redisUtil.set(redisKey, JSON.toJSONString(messages), 3600);
 
             return CompletableFuture.completedFuture(
@@ -105,6 +107,7 @@ public class AiChatServiceImpl implements AiChatService {
     @Override
     public CompletableFuture<ApiResponse<ImageForm>> image(ImageForm imageForm) {
         try {
+            // 图片生成是一次性请求，不参与 chat:* 会话历史；参考图和比例直接透传给 Gemini 客户端。
             GeminiImageResult result = geminiImageClient.generateImage(
                     imageForm.getMessage(), imageForm.getData(), imageForm.getMimeType(),
                     imageForm.getAspectRatio());
@@ -138,6 +141,7 @@ public class AiChatServiceImpl implements AiChatService {
     @Async("taskExecutor")
     public CompletableFuture<ApiResponse<ChatForm>> recognizeImage(ImageForm imageForm) {
         try {
+            // 视觉识别要求图片数据和 MIME 类型同时存在；客户端会把纯 base64 拼成 data URL。
             if (imageForm == null
                     || StringUtils.isBlank(imageForm.getData())
                     || StringUtils.isBlank(imageForm.getMimeType())) {
@@ -155,6 +159,7 @@ public class AiChatServiceImpl implements AiChatService {
             if (StringUtils.isNotBlank(systemPrompt)) {
                 messages.add(ChatMessages.system(systemPrompt));
             }
+            // OpenAI 兼容视觉接口要求一条 user message 内同时包含 text part 与 image_url part。
             messages.add(ChatMessages.userWithImage(question, imageForm.getMimeType(), imageForm.getData()));
 
             ChatResult result = openAiChatClient.complete(
@@ -221,15 +226,18 @@ public class AiChatServiceImpl implements AiChatService {
                 String memoryId = resolveMemoryId(chatForm.getMemoryId());
                 String redisKey = "chat:" + memoryId;
 
+                // 流式对话与普通对话共用同一份 Redis 历史，保证两种入口可以延续上下文。
                 List<Map<String, Object>> messages = loadHistory(redisKey);
                 messages.add(ChatMessages.user(chatForm.getMessage()));
 
                 StringBuilder fullReply = new StringBuilder();
+                // 首个事件先把 memoryId 返回给前端，新会话可立即拿到后续清理/续聊所需的 id。
                 emitter.send(SseEmitter.event().data(Map.of("memoryId", memoryId)));
 
                 openAiChatClient.stream(
                         ChatRequest.builder().messages(messages).temperature(1).build(),
                         delta -> {
+                            // SSE 只给前端推增量，但 Redis 需要保存完整 assistant 消息，因此本地同步拼接。
                             fullReply.append(delta);
                             try {
                                 emitter.send(SseEmitter.event().data(Map.of("content", delta)));
@@ -239,6 +247,7 @@ public class AiChatServiceImpl implements AiChatService {
                         });
 
                 messages.add(ChatMessages.assistant(fullReply.toString()));
+                // 流结束后再落库，避免用户下次续聊时读到半截 assistant 回复。
                 redisUtil.set(redisKey, JSON.toJSONString(messages), 3600);
 
                 emitter.complete();
@@ -259,6 +268,7 @@ public class AiChatServiceImpl implements AiChatService {
     private List<Map<String, Object>> loadHistory(String redisKey) {
         Object historyJson = redisUtil.get(redisKey);
         if (historyJson != null && !historyJson.toString().isEmpty()) {
+            // Redis 里存的是 OpenAI messages 原始结构，直接反序列化后可继续追加 user/assistant。
             return JSON.parseObject(historyJson.toString(), new TypeReference<List<Map<String, Object>>>() {});
         }
         List<Map<String, Object>> messages = new ArrayList<>();

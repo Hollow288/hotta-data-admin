@@ -72,9 +72,11 @@ public class AiApiKeyProvider {
             return null;
         }
         int size = apiKeys.size();
+        // 从递增游标开始找，既能轮询分摊流量，也能在某把 key 被限流时继续探测后面的 key。
         int start = Math.floorMod(cursor.getAndIncrement(), size);
         for (int i = 0; i < size; i++) {
             String apiKey = apiKeys.get((start + i) % size);
+            // Redis 中存在限流标记的 key 会被临时跳过，TTL 到期后自动恢复候选资格。
             if (StringUtils.isNotBlank(apiKey) && !redisUtil.hasKey(LIMIT_KEY_PREFIX + apiKey)) {
                 return apiKey;
             }

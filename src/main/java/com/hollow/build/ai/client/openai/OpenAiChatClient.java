@@ -55,6 +55,7 @@ public class OpenAiChatClient {
      */
     public ChatResult complete(ChatRequest request) {
         String model = resolveModel(request);
+        // requestBody 会进入 ChatResult，便于 Agent/OCR 等调用方把原始请求落日志排查问题。
         String requestBody = JSON.toJSONString(buildBody(request, model, false));
         long start = System.currentTimeMillis();
 
@@ -88,10 +89,12 @@ public class OpenAiChatClient {
             Map<String, Object> choice = choices.get(0);
             @SuppressWarnings("unchecked")
             Map<String, Object> message = (Map<String, Object>) choice.get("message");
+            // content 给普通业务直接用；完整 message 保留下来给 Agent 读取 tool_calls。
             String content = extractContent(message == null ? null : message.get("content"));
             String finishReason = JsonValues.asString(choice.get("finish_reason"));
             int toolCallCount = countToolCalls(message);
 
+            // usage 可能因网关、流式模拟或异常响应缺失，缺失时保持 null，避免误记为 0。
             Integer prompt = null, completion = null, total = null;
             if (json.get("usage") instanceof Map<?, ?> usage) {
                 prompt = JsonValues.asInt(usage.get("prompt_tokens"));
@@ -171,6 +174,7 @@ public class OpenAiChatClient {
                 if ("[DONE]".equals(data)) {
                     break;
                 }
+                // Chat Completions 流式响应的文本增量在 choices[0].delta.content。
                 Map<String, Object> chunk = JSON.parseObject(data, new TypeReference<>() {});
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> choices = (List<Map<String, Object>>) chunk.get("choices");
@@ -201,6 +205,7 @@ public class OpenAiChatClient {
         body.put("stream", stream);
         List<Map<String, Object>> tools = request.getTools();
         if (tools != null && !tools.isEmpty()) {
+            // tools 只在调用方显式传入时下发，避免普通聊天被模型误判为工具调用场景。
             body.put("tools", tools);
             if (StringUtils.isNotBlank(request.getToolChoice())) {
                 body.put("tool_choice", request.getToolChoice());
@@ -230,6 +235,7 @@ public class OpenAiChatClient {
         int httpStatus = response.statusCode();
         String trimmed = responseBody == null ? "" : responseBody.trim();
 
+        // 一些 OpenAI 兼容网关即使 HTTP 状态为 200，也会把业务错误塞进 error 字段。
         Map<?, ?> error = findError(trimmed);
         if (error != null) {
             Integer code = JsonValues.asInt(error.get("code"));
@@ -302,6 +308,7 @@ public class OpenAiChatClient {
         return 0;
     }
 
+    /** 失败结果仍保留 model/request/response/status/duration，方便调用方统一记录 AI 调用日志。 */
     private static ChatResult failure(String model, String requestBody, String responseBody,
                                       Integer httpStatus, long durationMs, String errorMessage) {
         return new ChatResult(null, null, model, requestBody, responseBody,
