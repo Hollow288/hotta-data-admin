@@ -98,7 +98,7 @@ public class SecurityConfiguration {
 		final var corsConfiguration = new CorsConfiguration();
 		corsConfiguration.setAllowedOrigins(List.of("*"));
 		corsConfiguration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-		corsConfiguration.setAllowedHeaders(List.of("Authorization", "Origin", "Content-Type", "Accept", "X-API-KEY"));
+		corsConfiguration.setAllowedHeaders(List.of("Authorization", "Origin", "Content-Type", "Accept", "X-API-KEY", "X-FUND-TOKEN"));
 		corsConfiguration.setExposedHeaders(List.of(
 				"Content-Type",
 				"Content-Disposition",

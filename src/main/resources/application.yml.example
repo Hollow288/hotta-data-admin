@@ -136,3 +136,11 @@ com:
         - image/heic
         - image/heif
         - application/pdf
+    fund:
+      api-token: ${FUND_API_TOKEN:}                    # 写接口(加/删监控)密钥，机器人请求头带 X-FUND-TOKEN；留空则不校验
+      backfill-days: 365                               # 添加基金时回补的历史净值天数
+      nav-sync-cron: "0 30 23 * * ?"                   # 每晚拉取最新净值
+      nav-backup-cron: "0 30 5 * * ?"                  # 次日凌晨兜底再拉一次（覆盖 QDII 延迟）
+      request-timeout-seconds: 15                      # 调用东方财富接口超时(秒)
+      eastmoney-referer: "http://fund.eastmoney.com/"  # lsjz 历史净值接口必须带的 Referer
+      risk-free-annual-rate: 0                          # 计算夏普比率使用的无风险年化收益率(%)

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.hollow.build.fund.FundMapper">
+
+    <!-- 按代码查询基金（含已停用） -->
+    <select id="selectByCode" resultType="com.hollow.build.fund.Fund">
+        SELECT * FROM fund WHERE fund_code = #{fundCode}
+    </select>
+
+    <!-- 所有启用监控的基金 -->
+    <select id="selectEnabledList" resultType="com.hollow.build.fund.Fund">
+        SELECT * FROM fund WHERE enabled = 1 ORDER BY create_time
+    </select>
+
+    <!-- 新增或更新基金：已存在则更新名称/类型并重新启用，不动 latest_nav_date -->
+    <insert id="insertOrUpdateFund" parameterType="com.hollow.build.fund.Fund">
+        INSERT INTO fund (fund_code, fund_name, fund_type, enabled)
+        VALUES (#{fundCode}, #{fundName}, #{fundType}, 1)
+        ON DUPLICATE KEY UPDATE
+            fund_name = VALUES(fund_name),
+            fund_type = VALUES(fund_type),
+            enabled   = 1
+    </insert>
+
+    <!-- 更新已入库的最新净值日期 -->
+    <update id="updateLatestNavDate">
+        UPDATE fund SET latest_nav_date = #{navDate} WHERE fund_code = #{fundCode}
+    </update>
+
+    <!-- 停用监控 -->
+    <update id="disableFund">
+        UPDATE fund SET enabled = 0 WHERE fund_code = #{fundCode}
+    </update>
+
+    <!-- 批量 upsert 净值：已存在则覆盖（支持净值修正） -->
+    <insert id="batchUpsertNav">
+        INSERT INTO fund_nav (fund_code, nav_date, unit_nav, acc_nav, growth_rate)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.fundCode}, #{item.navDate}, #{item.unitNav}, #{item.accNav}, #{item.growthRate})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            unit_nav    = VALUES(unit_nav),
+            acc_nav     = VALUES(acc_nav),
+            growth_rate = VALUES(growth_rate)
+    </insert>
+
+    <!-- 某基金从指定日期起的净值，升序 -->
+    <select id="selectNavByCodeAndRange" resultType="com.hollow.build.fund.FundNav">
+        SELECT * FROM fund_nav
+        WHERE fund_code = #{fundCode}
+          AND nav_date &gt;= #{startDate}
+        ORDER BY nav_date ASC
+    </select>
+
+    <!-- 某基金最新一条净值 -->
+    <select id="selectLatestNav" resultType="com.hollow.build.fund.FundNav">
+        SELECT * FROM fund_nav
+        WHERE fund_code = #{fundCode}
+        ORDER BY nav_date DESC
+        LIMIT 1
+    </select>
+
+    <!-- 某基金库内最大净值日期 -->
+    <select id="selectMaxNavDate" resultType="java.time.LocalDate">
+        SELECT MAX(nav_date) FROM fund_nav WHERE fund_code = #{fundCode}
+    </select>
+
+    <!-- upsert 基金画像快照（每只一行，覆盖更新） -->
+    <insert id="upsertProfile" parameterType="com.hollow.build.fund.FundProfile">
+        INSERT INTO fund_profile
+        (fund_code, return_1m, return_3m, return_6m, return_1y, similar_percent,
+         fund_scale, scale_date, manager_name, manager_star, manager_work_time,
+         manager_size, manager_score, buy_rate, min_buy)
+        VALUES
+        (#{fundCode}, #{return1m}, #{return3m}, #{return6m}, #{return1y}, #{similarPercent},
+         #{fundScale}, #{scaleDate}, #{managerName}, #{managerStar}, #{managerWorkTime},
+         #{managerSize}, #{managerScore}, #{buyRate}, #{minBuy})
+        ON DUPLICATE KEY UPDATE
+            return_1m         = VALUES(return_1m),
+            return_3m         = VALUES(return_3m),
+            return_6m         = VALUES(return_6m),
+            return_1y         = VALUES(return_1y),
+            similar_percent   = VALUES(similar_percent),
+            fund_scale        = VALUES(fund_scale),
+            scale_date        = VALUES(scale_date),
+            manager_name      = VALUES(manager_name),
+            manager_star      = VALUES(manager_star),
+            manager_work_time = VALUES(manager_work_time),
+            manager_size      = VALUES(manager_size),
+            manager_score     = VALUES(manager_score),
+            buy_rate          = VALUES(buy_rate),
+            min_buy           = VALUES(min_buy)
+    </insert>
+
+    <!-- 查询基金画像快照 -->
+    <select id="selectProfileByCode" resultType="com.hollow.build.fund.FundProfile">
+        SELECT * FROM fund_profile WHERE fund_code = #{fundCode}
+    </select>
+
+    <!-- 批量 upsert 阶段收益排名：已存在则覆盖最新快照 -->
+    <insert id="batchUpsertPeriodRank">
+        INSERT INTO fund_period_rank
+        (fund_code, period_code, period_name, fund_return, similar_average_return,
+         benchmark_return, rank_no, rank_total, as_of)
+        VALUES
+        <foreach collection="list" item="item" separator=",">
+            (#{item.fundCode}, #{item.periodCode}, #{item.periodName}, #{item.fundReturn}, #{item.similarAverageReturn},
+             #{item.benchmarkReturn}, #{item.rankNo}, #{item.rankTotal}, #{item.asOf})
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            period_name            = VALUES(period_name),
+            fund_return            = VALUES(fund_return),
+            similar_average_return = VALUES(similar_average_return),
+            benchmark_return       = VALUES(benchmark_return),
+            rank_no                = VALUES(rank_no),
+            rank_total             = VALUES(rank_total),
+            as_of                  = VALUES(as_of)
+    </insert>
+
+    <!-- 查询阶段收益排名，按常用点评顺序排序 -->
+    <select id="selectPeriodRanksByCode" resultType="com.hollow.build.fund.FundPeriodRank">
+        SELECT * FROM fund_period_rank
+        WHERE fund_code = #{fundCode}
+        ORDER BY FIELD(period_code, 'Z', 'Y', '3Y', '6Y', '1N', '2N', '3N', '5N', 'JN', 'LN'), period_code
+    </select>
+
+</mapper>
