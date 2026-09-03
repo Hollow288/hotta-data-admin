@@ -88,8 +88,9 @@ com:
       text-default-prompt: ${AI_TEXT_DEFAULT_PROMPT}
 
       image-api-key: ${AI_IMAGE_APIKEY}
-      image-model: ${AI_IMAGE_MODEL}
-      image-uri: ${AI_IMAGE_URI}
+      image-model: ${AI_IMAGE_MODEL:gpt-image-2}
+      image-quality: ${AI_IMAGE_QUALITY:high}
+      image-uri: ${AI_IMAGE_URI:https://api.openai.com/v1/images/generations}
       image-default-prompt: ${AI_IMAGE_DEFAULT_PROMPT}
 
       proxy-address: ${AI_PROXY_ADDRESS}

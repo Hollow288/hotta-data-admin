@@ -1,11 +1,11 @@
 package com.hollow.build.ai.service.impl;
 
-import com.hollow.build.ai.client.gemini.GeminiImageClient;
-import com.hollow.build.ai.client.gemini.GeminiImageResult;
 import com.hollow.build.ai.client.openai.ChatMessages;
 import com.hollow.build.ai.client.openai.ChatRequest;
 import com.hollow.build.ai.client.openai.ChatResult;
 import com.hollow.build.ai.client.openai.OpenAiChatClient;
+import com.hollow.build.ai.client.openai.OpenAiImageClient;
+import com.hollow.build.ai.client.openai.OpenAiImageResult;
 import com.hollow.build.common.ApiResponse;
 import com.hollow.build.common.enums.GlobalErrorCodeConstants;
 import com.hollow.build.ai.config.AiConfigurationProperties;
@@ -33,23 +33,25 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>本类只负责业务编排：会话历史（Redis）、memoryId、system prompt 拼装、{@code ApiResponse} 封装、
  * 异步与 SSE 事件编排。具体「怎么跟 AI 说话」（HTTP / 协议 / key / 限流）交给
- * {@link OpenAiChatClient} 与 {@link GeminiImageClient}。
+ * {@link OpenAiChatClient} 与 {@link OpenAiImageClient}。
  */
 @Slf4j
 @Service
 public class AiChatServiceImpl implements AiChatService {
 
     private final OpenAiChatClient openAiChatClient;
-    private final GeminiImageClient geminiImageClient;
+    private final OpenAiImageClient openAiImageClient;
+    // 原 Gemini 注入保留作回切参考：private final GeminiImageClient geminiImageClient;
     private final AiConfigurationProperties aiConfigurationProperties;
     private final RedisUtil redisUtil;
 
     public AiChatServiceImpl(OpenAiChatClient openAiChatClient,
-                             GeminiImageClient geminiImageClient,
+                             OpenAiImageClient openAiImageClient,
                              AiConfigurationProperties aiConfigurationProperties,
                              RedisUtil redisUtil) {
         this.openAiChatClient = openAiChatClient;
-        this.geminiImageClient = geminiImageClient;
+        this.openAiImageClient = openAiImageClient;
+        // 原 Gemini 注入保留作回切参考：this.geminiImageClient = geminiImageClient;
         this.aiConfigurationProperties = aiConfigurationProperties;
         this.redisUtil = redisUtil;
     }
@@ -98,7 +100,7 @@ public class AiChatServiceImpl implements AiChatService {
     }
 
     /**
-     * 异步发送图像生成请求，调用 Gemini API 生成图片。
+     * 异步发送图像生成请求，调用 OpenAI Image API 生成图片。
      *
      * @param imageForm 图像表单，包含提示文本及可选的参考图片数据
      * @return 异步返回包含生成图片 Base64 数据和 MIME 类型的响应
@@ -107,10 +109,15 @@ public class AiChatServiceImpl implements AiChatService {
     @Override
     public CompletableFuture<ApiResponse<ImageForm>> image(ImageForm imageForm) {
         try {
-            // 图片生成是一次性请求，不参与 chat:* 会话历史；参考图和比例直接透传给 Gemini 客户端。
-            GeminiImageResult result = geminiImageClient.generateImage(
+            // 图片生成是一次性请求，不参与 chat:* 会话历史；参考图和比例直接透传给 OpenAI 客户端。
+            OpenAiImageResult result = openAiImageClient.generateImage(
                     imageForm.getMessage(), imageForm.getData(), imageForm.getMimeType(),
                     imageForm.getAspectRatio());
+
+            // 原 Gemini 调用保留作回切参考：
+            // GeminiImageResult result = geminiImageClient.generateImage(
+            //         imageForm.getMessage(), imageForm.getData(), imageForm.getMimeType(),
+            //         imageForm.getAspectRatio());
 
             if (result.isError()) {
                 return CompletableFuture.completedFuture(

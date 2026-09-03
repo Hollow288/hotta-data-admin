@@ -12,10 +12,10 @@
 | 让模型看图片并回答（视觉） | `openai.OpenAiChatClient` | `complete(ChatRequest)`（user content 放 image_url） |
 | 工具调用 / function calling | `openai.OpenAiChatClient` | `complete(ChatRequest)`（带 `tools`） |
 | 流式输出（SSE / 打字机效果） | `openai.OpenAiChatClient` | `stream(ChatRequest, onDelta)` |
-| 生成图片 | `gemini.GeminiImageClient` | `generateImage(prompt, 参考图, mime)` |
+| 生成图片 | `openai.OpenAiImageClient` | `generateImage(prompt, 参考图, mime, 比例)` |
 
-- OpenAI 系（对话/视觉/工具/流式）→ 看 [`openai/README.md`](openai/README.md)
-- Gemini 生图 → 看 [`gemini/README.md`](gemini/README.md)
+- OpenAI 系（对话/视觉/工具/流式/生图）→ 看 [`openai/README.md`](openai/README.md)
+- 旧 Gemini 生图实现仍保留在 [`gemini/README.md`](gemini/README.md)，便于回切。
 
 ## 怎么拿到客户端
 
@@ -24,12 +24,12 @@
 ```java
 @Service
 public class MyService {
-    private final OpenAiChatClient openAiChatClient;   // com.hollow.build.ai.client.openai
-    private final GeminiImageClient geminiImageClient; // com.hollow.build.ai.client.gemini
+    private final OpenAiChatClient openAiChatClient;     // com.hollow.build.ai.client.openai
+    private final OpenAiImageClient openAiImageClient;   // com.hollow.build.ai.client.openai
 
-    public MyService(OpenAiChatClient openAiChatClient, GeminiImageClient geminiImageClient) {
+    public MyService(OpenAiChatClient openAiChatClient, OpenAiImageClient openAiImageClient) {
         this.openAiChatClient = openAiChatClient;
-        this.geminiImageClient = geminiImageClient;
+        this.openAiImageClient = openAiImageClient;
     }
 }
 ```
@@ -40,7 +40,7 @@ public class MyService {
 |---|---|---|
 | `AiHttpClientConfig` | 提供唯一共享的 `HttpClient`（40s / HTTP_2 / 按配置挂代理） | 不用，客户端已注入 |
 | `AiApiKeyProvider` | 从 key 列表里挑一个没被限流的；命中 429 自动把该 key 封禁 86400s | 不用，客户端内部已调用 |
-| `OpenAiChatClient` / `GeminiImageClient` | 拼请求体、判错、解析、提取内容 | 你只给输入、读结果 |
+| `OpenAiChatClient` / `OpenAiImageClient` | 拼请求体、判错、解析、提取内容 | 你只给输入、读结果 |
 
 **所以**：你不需要写 `Bearer` 头、不需要判断哪个 key 还能用、不需要处理代理、不需要解析 `choices[0].message.content`。
 
@@ -60,8 +60,9 @@ com:
       text-model: gpt-4o
       text-api-key: [key1, key2]                    # 列表，轮询 + 限流降级
       text-default-prompt: ""                       # 可选 system prompt
-      image-uri:  https://.../v1beta/models/        # Gemini，客户端会拼 model + ":generateContent"
-      image-model: gemini-2.5-flash-image
+      image-uri:  https://api.openai.com/v1/images/generations
+      image-model: gpt-image-2
+      image-quality: high                            # low / medium / high / auto
       image-api-key: [keyA, keyB]
       proxy-enabled: false
       proxy-address: 127.0.0.1

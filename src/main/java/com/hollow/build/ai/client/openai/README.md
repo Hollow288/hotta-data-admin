@@ -1,9 +1,11 @@
 # OpenAiChatClient 使用指南
 
-OpenAI 标准 Chat Completions 封装。一个客户端覆盖：普通对话、视觉识图、function calling、流式。
+OpenAI API 封装。`OpenAiChatClient` 覆盖普通对话、视觉识图、function calling、流式；
+`OpenAiImageClient` 负责图片生成与基于参考图的编辑。
 
 ```java
 private final OpenAiChatClient openAiChatClient; // 构造注入即可
+private final OpenAiImageClient openAiImageClient;
 ```
 
 核心两个方法：
@@ -11,7 +13,15 @@ private final OpenAiChatClient openAiChatClient; // 构造注入即可
 ```java
 ChatResult complete(ChatRequest request);                          // 非流式，返回完整结果
 void        stream(ChatRequest request, Consumer<String> onDelta); // 流式，每个增量片段回调
+OpenAiImageResult generateImage(String prompt, String refBase64, String refMimeType, String aspectRatio);
 ```
+
+`OpenAiImageClient` 在没有参考图时请求 `image-uri` 指向的 `/v1/images/generations`；传入参考图时，
+会自动改用 `/v1/images/edits` multipart 请求。成功结果的 `data()` 是 Base64 PNG，失败时先判断
+`isError()` 并读取 `errorMessage()`。默认输出横向 4K `3840x2160`，质量由 `image-quality` 控制，
+默认值为 `high`；请求显式传入 `aspectRatio` 时会覆盖默认横图方向。
+
+> 4K 尺寸仅按 `gpt-image-2` 能力设置，且 OpenAI 当前将超过 `2560x1440` 的输出标记为 experimental。
 
 ---
 

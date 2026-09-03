@@ -37,7 +37,10 @@ public class AiConfigurationProperties {
     /** 图像生成使用的模型名称 */
     private String imageModel;
 
-    /** 图像 AI 服务的请求地址前缀，Gemini 客户端会在后面拼接 model + ":generateContent" */
+    /** OpenAI 图片生成质量：low / medium / high / auto */
+    private String imageQuality;
+
+    /** OpenAI 图片生成接口地址，推荐配置完整的 /v1/images/generations 地址 */
     private String imageUri;
 
     /** 代理服务器地址 */
