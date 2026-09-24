@@ -14,12 +14,14 @@ private final OpenAiImageClient openAiImageClient;
 ChatResult complete(ChatRequest request);                          // 非流式，返回完整结果
 void        stream(ChatRequest request, Consumer<String> onDelta); // 流式，每个增量片段回调
 OpenAiImageResult generateImage(String prompt, String refBase64, String refMimeType, String aspectRatio);
+OpenAiImageResult generateImage(String prompt, String refBase64, String refMimeType, String aspectRatio, String model);
 ```
 
 `OpenAiImageClient` 在没有参考图时请求 `image-uri` 指向的 `/v1/images/generations`；传入参考图时，
 会自动改用 `/v1/images/edits` multipart 请求。成功结果的 `data()` 是 Base64 PNG，失败时先判断
 `isError()` 并读取 `errorMessage()`。默认输出横向 4K `3840x2160`，质量由 `image-quality` 控制，
 默认值为 `high`；请求显式传入 `aspectRatio` 时会覆盖默认横图方向。
+`model` 可覆盖本次图片生成或编辑使用的模型；不传或传空值时使用 `image-model` 配置。
 
 > 4K 尺寸仅按 `gpt-image-2` 能力设置，且 OpenAI 当前将超过 `2560x1440` 的输出标记为 experimental。
 

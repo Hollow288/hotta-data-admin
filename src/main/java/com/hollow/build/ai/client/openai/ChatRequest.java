@@ -9,8 +9,7 @@ import java.util.Map;
 /**
  * 一次 OpenAI 标准 Chat Completions 调用的入参。
  *
- * <p>只描述「这次想对模型说什么、用什么参数」，不关心 key、地址、模型名等传输细节——
- * 那些由 {@link OpenAiChatClient} 从配置里取。
+ * <p>描述本次调用的消息、参数和可选模型；鉴权和地址由 {@link OpenAiChatClient} 从配置里取。
  */
 @Getter
 @Builder

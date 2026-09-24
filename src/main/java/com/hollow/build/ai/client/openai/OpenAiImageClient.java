@@ -68,6 +68,12 @@ public class OpenAiImageClient {
      */
     public OpenAiImageResult generateImage(String prompt, String refImageBase64,
                                            String refImageMimeType, String aspectRatio) {
+        return generateImage(prompt, refImageBase64, refImageMimeType, aspectRatio, null);
+    }
+
+    /** 可选模型名称为空时使用配置的图像模型。 */
+    public OpenAiImageResult generateImage(String prompt, String refImageBase64,
+                                           String refImageMimeType, String aspectRatio, String model) {
         String apiKey = apiKeyProvider.pickImageKey();
         if (apiKey == null) {
             return OpenAiImageResult.failure(NO_KEY_MESSAGE);
@@ -75,9 +81,10 @@ public class OpenAiImageClient {
 
         try {
             boolean hasReferenceImage = StringUtils.isNotBlank(refImageBase64);
+            String resolvedModel = StringUtils.isNotBlank(model) ? model : aiConfigurationProperties.getImageModel();
             HttpRequest request = hasReferenceImage
-                    ? buildEditRequest(prompt, refImageBase64, refImageMimeType, aspectRatio, apiKey)
-                    : buildGenerationRequest(prompt, aspectRatio, apiKey);
+                    ? buildEditRequest(prompt, refImageBase64, refImageMimeType, aspectRatio, resolvedModel, apiKey)
+                    : buildGenerationRequest(prompt, aspectRatio, resolvedModel, apiKey);
 
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             String errorMessage = detectAndMarkError(response, apiKey);
@@ -105,9 +112,9 @@ public class OpenAiImageClient {
         }
     }
 
-    private HttpRequest buildGenerationRequest(String prompt, String aspectRatio, String apiKey) {
+    private HttpRequest buildGenerationRequest(String prompt, String aspectRatio, String model, String apiKey) {
         Map<String, Object> body = new LinkedHashMap<>();
-        body.put("model", aiConfigurationProperties.getImageModel());
+        body.put("model", model);
         body.put("prompt", prompt == null ? "" : prompt);
         body.put("size", resolveSize(aspectRatio));
         body.put("quality", resolveQuality());
@@ -120,10 +127,10 @@ public class OpenAiImageClient {
     }
 
     private HttpRequest buildEditRequest(String prompt, String refImageBase64, String refImageMimeType,
-                                         String aspectRatio, String apiKey) {
+                                         String aspectRatio, String model, String apiKey) {
         ReferenceImage referenceImage = decodeReferenceImage(refImageBase64, refImageMimeType);
         String boundary = "----OpenAiImageBoundary" + UUID.randomUUID().toString().replace("-", "");
-        byte[] requestBody = buildMultipartBody(boundary, prompt, aspectRatio, referenceImage);
+        byte[] requestBody = buildMultipartBody(boundary, prompt, aspectRatio, model, referenceImage);
 
         return baseRequest(resolveImageUri(true), apiKey)
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
@@ -162,11 +169,11 @@ public class OpenAiImageClient {
         return URI.create(configured + "/" + target);
     }
 
-    private byte[] buildMultipartBody(String boundary, String prompt, String aspectRatio,
+    private byte[] buildMultipartBody(String boundary, String prompt, String aspectRatio, String model,
                                       ReferenceImage referenceImage) {
         try {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
-            writeTextPart(output, boundary, "model", aiConfigurationProperties.getImageModel());
+            writeTextPart(output, boundary, "model", model);
             writeTextPart(output, boundary, "prompt", prompt == null ? "" : prompt);
             writeTextPart(output, boundary, "size", resolveSize(aspectRatio));
             writeTextPart(output, boundary, "quality", resolveQuality());

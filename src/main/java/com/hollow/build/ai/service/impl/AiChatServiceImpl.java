@@ -75,7 +75,7 @@ public class AiChatServiceImpl implements AiChatService {
             messages.add(ChatMessages.user(chatForm.getMessage()));
 
             ChatResult result = openAiChatClient.complete(
-                    ChatRequest.builder().messages(messages).temperature(1).build());
+                    ChatRequest.builder().messages(messages).model(chatForm.getModel()).temperature(1).build());
 
             if (result.isError()) {
                 return CompletableFuture.completedFuture(
@@ -112,7 +112,7 @@ public class AiChatServiceImpl implements AiChatService {
             // 图片生成是一次性请求，不参与 chat:* 会话历史；参考图和比例直接透传给 OpenAI 客户端。
             OpenAiImageResult result = openAiImageClient.generateImage(
                     imageForm.getMessage(), imageForm.getData(), imageForm.getMimeType(),
-                    imageForm.getAspectRatio());
+                    imageForm.getAspectRatio(), imageForm.getModel());
 
             // 原 Gemini 调用保留作回切参考：
             // GeminiImageResult result = geminiImageClient.generateImage(
@@ -170,7 +170,8 @@ public class AiChatServiceImpl implements AiChatService {
             messages.add(ChatMessages.userWithImage(question, imageForm.getMimeType(), imageForm.getData()));
 
             ChatResult result = openAiChatClient.complete(
-                    ChatRequest.builder().messages(messages).temperature(1).timeoutSeconds(120).build());
+                    ChatRequest.builder().messages(messages).model(imageForm.getModel())
+                            .temperature(1).timeoutSeconds(120).build());
 
             if (result.isError()) {
                 return CompletableFuture.completedFuture(
@@ -242,7 +243,7 @@ public class AiChatServiceImpl implements AiChatService {
                 emitter.send(SseEmitter.event().data(Map.of("memoryId", memoryId)));
 
                 openAiChatClient.stream(
-                        ChatRequest.builder().messages(messages).temperature(1).build(),
+                        ChatRequest.builder().messages(messages).model(chatForm.getModel()).temperature(1).build(),
                         delta -> {
                             // SSE 只给前端推增量，但 Redis 需要保存完整 assistant 消息，因此本地同步拼接。
                             fullReply.append(delta);

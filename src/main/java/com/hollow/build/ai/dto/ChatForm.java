@@ -15,4 +15,7 @@ public class ChatForm implements Serializable {
 
     @Schema(description = "消息内容")
     private String message;
+
+    @Schema(description = "可选模型名称；不传或为空时使用配置的文本模型")
+    private String model;
 }

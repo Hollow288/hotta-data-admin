@@ -31,7 +31,7 @@ public class AiChatController {
     /**
      * AI 聊天接口，根据会话ID进行对话
      *
-     * @param chatForm 聊天表单，包含会话ID及消息内容
+     * @param chatForm 聊天表单，包含会话ID、消息内容及可选模型名称
      * @return 异步返回聊天结果
      */
     @PostMapping("/chat")
@@ -44,7 +44,7 @@ public class AiChatController {
     /**
      * AI 流式聊天接口，通过 SSE 实时推送对话内容
      *
-     * @param chatForm 聊天表单，包含会话ID及消息内容
+     * @param chatForm 聊天表单，包含会话ID、消息内容及可选模型名称
      * @return SSE 事件发射器，用于流式返回聊天内容
      */
     @PostMapping("/chat/stream")
@@ -57,7 +57,7 @@ public class AiChatController {
     /**
      * AI 图片生成接口，根据会话内容生成图片
      *
-     * @param imageForm 图片表单，包含图片生成的相关参数
+     * @param imageForm 图片表单，包含图片生成的相关参数及可选模型名称
      * @return 异步返回生成的图片信息
      */
     @PostMapping("/image")
@@ -70,7 +70,7 @@ public class AiChatController {
     /**
      * AI 图片识别接口，根据上传的图片返回文本识别结果
      *
-     * @param imageForm 图片表单，需提供 base64 data 与 mimeType，可选 message 作为提问
+     * @param imageForm 图片表单，需提供 base64 data 与 mimeType，可选 message 和 model
      * @return 异步返回 AI 对图片的文本描述
      */
     @PostMapping("/image/recognize")
