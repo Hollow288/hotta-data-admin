@@ -72,6 +72,7 @@ com:
       description: 试试限流
     minio:
       endpoint: ${MINIO_ENDPOINT:}
+      public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}
       access-key: ${MINIO_ACCESSKEY:}
       secret-key: ${MINIO_SECRETKEY:}
     google-drive:

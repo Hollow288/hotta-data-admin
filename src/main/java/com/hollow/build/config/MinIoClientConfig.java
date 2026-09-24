@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.web.servlet.MultipartConfigFactory;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import org.springframework.util.unit.DataSize;
 
@@ -25,9 +26,24 @@ public class MinIoClientConfig {
      * @return minioClient
      */
     @Bean
+    @Primary
     public MinioClient minioClient() {
+        return buildClient(minioConfigurationProperties.getEndpoint());
+    }
+
+    /**
+     * 注入用于生成浏览器预签名 URL 的 MinIO 客户端。
+     *
+     * @return 使用公开端点的 minioClient
+     */
+    @Bean("publicMinioClient")
+    public MinioClient publicMinioClient() {
+        return buildClient(minioConfigurationProperties.resolvePublicEndpoint());
+    }
+
+    private MinioClient buildClient(String endpoint) {
         return MinioClient.builder()
-                .endpoint(minioConfigurationProperties.getEndpoint())
+                .endpoint(endpoint)
                 .credentials(minioConfigurationProperties.getAccessKey(), minioConfigurationProperties.getSecretKey())
                 .build();
     }

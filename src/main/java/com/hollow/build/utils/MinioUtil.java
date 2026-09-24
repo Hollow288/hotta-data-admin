@@ -8,9 +8,9 @@ import io.minio.messages.DeleteError;
 import io.minio.messages.DeleteObject;
 import io.minio.messages.Item;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import org.apache.commons.compress.utils.IOUtils;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,11 +27,19 @@ import java.util.stream.Collectors;
  * @version 4.0
  */
 @Component
-@RequiredArgsConstructor
 public class MinioUtil {
 
     private final MinioClient minioClient;
+    private final MinioClient publicMinioClient;
     private final MinioConfigurationProperties minioConfigurationProperties;
+
+    public MinioUtil(@Qualifier("minioClient") MinioClient minioClient,
+                     @Qualifier("publicMinioClient") MinioClient publicMinioClient,
+                     MinioConfigurationProperties minioConfigurationProperties) {
+        this.minioClient = minioClient;
+        this.publicMinioClient = publicMinioClient;
+        this.minioConfigurationProperties = minioConfigurationProperties;
+    }
 
     /** 预签名 URL 默认过期时间：24 小时（单位：秒） */
     private static final int DEFAULT_PRESIGNED_URL_EXPIRY_SECONDS = 24 * 60 * 60;
@@ -347,7 +355,7 @@ public class MinioUtil {
      */
     @SneakyThrows(Exception.class)
     public String getUploadObjectUrl(String bucketName, String objectName, Integer expires) {
-        return minioClient.getPresignedObjectUrl(
+        return publicMinioClient.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
                         .method(Method.PUT)
                         .bucket(bucketName)
@@ -367,7 +375,7 @@ public class MinioUtil {
      */
     @SneakyThrows(Exception.class)
     public String getPreviewFileUrl(String bucketName, String objectName, Integer expires) {
-        return minioClient.getPresignedObjectUrl(
+        return publicMinioClient.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
                         .method(Method.GET)
                         .bucket(bucketName)
@@ -418,7 +426,7 @@ public class MinioUtil {
         if (!normalizedPath.isBlank()) {
             ObjectLocation location = resolveObjectLocation(normalizedPath, prefix);
             if (location != null) {
-                return minioClient.getPresignedObjectUrl(
+                return publicMinioClient.getPresignedObjectUrl(
                         GetPresignedObjectUrlArgs.builder()
                                 .method(Method.GET)
                                 .bucket(location.getBucketName())
@@ -503,7 +511,7 @@ public class MinioUtil {
     /**
      * 拼接旧版公开访问 URL。
      *
-     * 拼接格式：{endpoint}/{prefix}/{目录路径}{URL编码后的文件名}
+     * 拼接格式：{publicEndpoint}/{prefix}/{目录路径}{URL编码后的文件名}
      *
      * @param originalPath 原始文件路径
      * @param prefix       bucket 前缀（可为 null）
@@ -524,7 +532,10 @@ public class MinioUtil {
         String normalizedPrefix = normalizeBucketName(prefix);
         String finalPrefix = normalizedPrefix.isEmpty() ? "" : normalizedPrefix + "/";
 
-        return minioConfigurationProperties.getEndpoint() + "/" + finalPrefix + baseUrl + encodedFileName;
+        String publicEndpoint = stripTrailingSlashes(
+                minioConfigurationProperties.resolvePublicEndpoint().trim()
+        );
+        return publicEndpoint + "/" + finalPrefix + baseUrl + encodedFileName;
     }
 
     /**
