@@ -51,6 +51,12 @@ public class JwtUtil {
         return builder.compact();
     }
 
+    public String createJWT(String subject, Long ttlMillis, String tokenType) {
+        return getJwtBuilder(subject, ttlMillis, getUUID())
+                .claim("token_type", tokenType)
+                .compact();
+    }
+
     /**
      * 生成JWT，可指定id和TTL
      */

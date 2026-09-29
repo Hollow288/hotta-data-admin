@@ -65,6 +65,15 @@ com:
       username-max-attempt: 10
       ip-max-attempt: 5
       ttl-seconds: 15 # 皆为分钟
+    sso:
+      enabled: ${SSO_ENABLED:false}
+      public-base-url: ${SSO_PUBLIC_BASE_URL:}
+      internal-base-url: ${SSO_INTERNAL_BASE_URL:}
+      issuer: ${SSO_ISSUER:}
+      client-id: ${SSO_CLIENT_ID:}
+      client-secret: ${SSO_CLIENT_SECRET:}
+      redirect-uri: ${SSO_REDIRECT_URI:}
+      cookie-secure: ${SSO_COOKIE_SECURE:false}
     open-api:
       enabled: false
       api-version: 0.0.1

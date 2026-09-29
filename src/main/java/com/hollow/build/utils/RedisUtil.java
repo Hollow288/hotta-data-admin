@@ -118,6 +118,10 @@ public class RedisUtil {
         return redisTemplate.opsForValue().get(key);
     }
 
+    public Object getAndDelete(String key) {
+        return redisTemplate.opsForValue().getAndDelete(key);
+    }
+
     /**
      * 对字符串数值执行整型自增。
      *

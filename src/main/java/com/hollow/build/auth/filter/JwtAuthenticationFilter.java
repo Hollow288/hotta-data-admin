@@ -81,6 +81,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 String userid;
                 try {
                     Claims claims = jwtUtil.parseJWT(token);
+                    if (!"access".equals(claims.get("token_type", String.class))) {
+                        loginAttemptService.returnTokenError(response);
+                        return;
+                    }
                     userid = claims.getSubject();
                 } catch (Exception e) {
                     e.printStackTrace();

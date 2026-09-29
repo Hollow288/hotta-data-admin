@@ -22,6 +22,10 @@ public interface UserMapper {
     @Select("select * from user where username = #{username} limit 1")
     User selectByUsername(String username);
 
+    @Select("select * from user where user_id = #{userId} limit 1")
+    User selectById(Long userId);
+
+
     /**
      * 根据用户 ID 查询该用户拥有的角色标识列表。
      *

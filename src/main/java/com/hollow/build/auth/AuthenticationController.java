@@ -6,6 +6,8 @@ import com.hollow.build.ratelimit.BypassRateLimit;
 import com.hollow.build.auth.config.PublicEndpoint;
 import com.hollow.build.auth.dto.TokenSuccessResponseDto;
 import com.hollow.build.auth.dto.UserLoginRequestDto;
+import com.hollow.build.auth.dto.RefreshTokenRequestDto;
+import com.hollow.build.auth.service.LocalTokenService;
 import com.hollow.build.auth.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 
 /**
  * 认证控制器，提供用户登录认证相关接口
@@ -29,6 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthenticationController {
 
 	private final UserService userService;
+	private final LocalTokenService localTokenService;
 
 	/**
 	 * 用户登录接口，验证用户凭证并返回访问令牌
@@ -43,6 +47,19 @@ public class AuthenticationController {
 	@Operation(summary = "Validates user login credentials", description = "Validates user login credentials and returns access-token on successful authentication")
 	public ApiResponse<TokenSuccessResponseDto> login(@RequestBody final UserLoginRequestDto userLoginRequest, HttpServletRequest request) {
 		return userService.login(userLoginRequest,request);
+	}
+
+	@PublicEndpoint
+	@PostMapping("/auth/refresh")
+	public ApiResponse<TokenSuccessResponseDto> refresh(@RequestBody RefreshTokenRequestDto request) {
+		TokenSuccessResponseDto tokens = localTokenService.refresh(request.refreshToken());
+		return tokens == null ? new ApiResponse<>(401, "刷新令牌无效或已过期") : ApiResponse.success(tokens);
+	}
+
+	@PostMapping("/auth/logout")
+	public ApiResponse<Void> logout(Authentication authentication) {
+		localTokenService.logout(Long.valueOf(authentication.getName()));
+		return ApiResponse.success();
 	}
 
 }

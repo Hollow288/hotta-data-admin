@@ -17,4 +17,8 @@ public class TokenSuccessResponseDto implements Serializable {
 
 	private String refreshToken;
 
+	private UserProfileDto user;
+
+	private String redirectPath;
+
 }

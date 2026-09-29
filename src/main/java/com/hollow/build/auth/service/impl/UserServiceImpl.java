@@ -1,15 +1,13 @@
 package com.hollow.build.auth.service.impl;
 
-import com.alibaba.fastjson2.JSONObject;
 import com.hollow.build.common.ApiResponse;
 import com.hollow.build.common.enums.GlobalErrorCodeConstants;
 import com.hollow.build.auth.dto.CustomUserDetails;
 import com.hollow.build.auth.dto.TokenSuccessResponseDto;
 import com.hollow.build.auth.dto.UserLoginRequestDto;
 import com.hollow.build.auth.service.UserService;
-import com.hollow.build.auth.util.JwtUtil;
+import com.hollow.build.auth.service.LocalTokenService;
 import com.hollow.build.auth.util.LoginAttemptService;
-import com.hollow.build.utils.RedisUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,9 +26,8 @@ import org.springframework.stereotype.Service;
 public class UserServiceImpl implements UserService {
 
 	private final AuthenticationManager authenticationManager; // 直接注入
-	private final RedisUtil redisUtil;
-	private final JwtUtil jwtUtil;
 	private final LoginAttemptService loginAttemptService;
+	private final LocalTokenService localTokenService;
 
 	/**
 	 * 校验用户登录凭证，登录成功后生成访问令牌与刷新令牌。
@@ -69,30 +66,8 @@ public class UserServiceImpl implements UserService {
 
 		CustomUserDetails loginUser = (CustomUserDetails) authenticate.getPrincipal();
 
-		String userid = loginUser.getUser().getUserId().toString();
-		String accessToken = jwtUtil.createJWT(userid, jwtUtil.getAccessTokenTTL());
-		String refreshToken = jwtUtil.createJWT(userid, jwtUtil.getRefreshTokenTTL());
-
-		redisUtil.set(
-				"access_token:" + userid,
-				JSONObject.toJSONString(loginUser.getPermissions()),
-				jwtUtil.getAccessTokenTTL() / 1000
-		);
-
-		redisUtil.set(
-				"refresh_token:" + userid,
-				JSONObject.toJSONString(loginUser.getPermissions()),
-				jwtUtil.getRefreshTokenTTL() / 1000
-		);
-
 		// 登录成功
 		loginAttemptService.clearAttempts(userLoginRequest.getUsername());
-
-		return ApiResponse.success(
-				TokenSuccessResponseDto.builder()
-						.accessToken(accessToken)
-						.refreshToken(refreshToken)
-						.build()
-		);
+		return ApiResponse.success(localTokenService.issue(loginUser.getUser()));
 	}
 }
