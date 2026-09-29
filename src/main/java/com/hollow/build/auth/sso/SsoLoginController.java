@@ -1,6 +1,7 @@
 package com.hollow.build.auth.sso;
 
 import com.hollow.build.auth.config.PublicEndpoint;
+import com.hollow.build.ratelimit.BypassRateLimit;
 import com.hollow.build.auth.dto.TokenSuccessResponseDto;
 import com.hollow.build.common.ApiResponse;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class SsoLoginController {
     private final SsoLoginService service;
 
     @PublicEndpoint
+    @BypassRateLimit
     @GetMapping("/start")
     public ResponseEntity<Void> start(@RequestParam(value = "redirect", required = false) String redirect) {
         SsoLoginService.StartResult result = service.start(redirect);
@@ -33,6 +35,7 @@ public class SsoLoginController {
     }
 
     @PublicEndpoint
+    @BypassRateLimit
     @PostMapping("/exchange")
     public ResponseEntity<ApiResponse<TokenSuccessResponseDto>> exchange(
             @RequestBody SsoExchangeRequest request,
