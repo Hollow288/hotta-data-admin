@@ -20,7 +20,12 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.Base64;
 import java.util.Map;
 import java.util.UUID;
 
@@ -30,6 +35,7 @@ public class SsoLoginService {
     public static final String TRANSACTION_COOKIE = "HOTTA_SSO_TX";
     private static final String TRANSACTION_PREFIX = "sso_login:";
     private static final Duration TRANSACTION_TTL = Duration.ofMinutes(5);
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final SsoClientProperties properties;
     private final RedisUtil redisUtil;
@@ -40,17 +46,18 @@ public class SsoLoginService {
     public record StartResult(URI authorizeUri, ResponseCookie transactionCookie) {
     }
 
-    private record Transaction(String nonce, String redirectPath) {
+    private record Transaction(String nonce, String redirectPath, String codeVerifier) {
     }
 
     public StartResult start(String redirectPath) {
         requireEnabled();
         String state = UUID.randomUUID().toString();
         String nonce = UUID.randomUUID().toString();
+        String codeVerifier = newCodeVerifier();
         String safePath = safeRedirectPath(redirectPath);
         try {
             redisUtil.set(TRANSACTION_PREFIX + state,
-                    objectMapper.writeValueAsString(new Transaction(nonce, safePath)),
+                    objectMapper.writeValueAsString(new Transaction(nonce, safePath, codeVerifier)),
                     TRANSACTION_TTL.toSeconds());
         } catch (JsonProcessingException ex) {
             throw new SsoLoginException(500, "无法创建 SSO 登录请求");
@@ -61,6 +68,8 @@ public class SsoLoginService {
                 .queryParam("scope", "openid profile")
                 .queryParam("state", state)
                 .queryParam("nonce", nonce)
+                .queryParam("code_challenge", challengeFor(codeVerifier))
+                .queryParam("code_challenge_method", "S256")
                 .build().encode().toUri();
         ResponseCookie cookie = ResponseCookie.from(TRANSACTION_COOKIE, state)
                 .httpOnly(true)
@@ -83,6 +92,9 @@ public class SsoLoginService {
         }
         try {
             Transaction transaction = objectMapper.readValue(storedJson, Transaction.class);
+            if (blank(transaction.codeVerifier())) {
+                throw new SsoLoginException(400, "SSO 登录请求缺少 PKCE 信息，请重新登录");
+            }
             RestClient client = RestClient.create(properties.getInternalBaseUrl());
             LinkedMultiValueMap<String, String> form = new LinkedMultiValueMap<>();
             form.add("grant_type", "authorization_code");
@@ -90,6 +102,7 @@ public class SsoLoginService {
             form.add("redirect_uri", properties.getRedirectUri());
             form.add("client_id", properties.getClientId());
             form.add("client_secret", properties.getClientSecret());
+            form.add("code_verifier", transaction.codeVerifier());
             Map<?, ?> tokens = client.post().uri("/sso/token")
                     .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                     .body(form).retrieve().body(Map.class);
@@ -141,6 +154,22 @@ public class SsoLoginService {
 
     private boolean blank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private static String newCodeVerifier() {
+        byte[] bytes = new byte[32];
+        SECURE_RANDOM.nextBytes(bytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    private static String challengeFor(String verifier) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(verifier.getBytes(StandardCharsets.US_ASCII));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 unavailable", ex);
+        }
     }
 
     private String safeRedirectPath(String value) {
