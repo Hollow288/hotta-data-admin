@@ -42,4 +42,10 @@ public class AgentProperties {
      * 没列出来的 agent 名按"开启"处理。
      */
     private Map<String, Boolean> enabledAgents = new LinkedHashMap<>();
+
+    /**
+     * 是否参与总入口路由，与 enabledAgents 的整体启停分开。
+     * 未配置时使用各 Agent 的 defaultRoutingEnabled()；关闭路由不影响直连接口。
+     */
+    private Map<String, Boolean> routingEnabled = new LinkedHashMap<>();
 }

@@ -3,6 +3,7 @@ package com.hollow.build.agent.config;
 import com.hollow.build.agent.alias.AliasTool;
 import com.hollow.build.agent.core.ToolRegistry;
 import com.hollow.build.agent.database.DatabaseTool;
+import com.hollow.build.agent.trading.TradingTool;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -29,6 +30,11 @@ public class AgentToolRegistries {
 
     @Bean
     public ToolRegistry aliasToolRegistry(List<AliasTool> tools) {
+        return new ToolRegistry(tools);
+    }
+
+    @Bean
+    public ToolRegistry tradingToolRegistry(List<TradingTool> tools) {
         return new ToolRegistry(tools);
     }
 }

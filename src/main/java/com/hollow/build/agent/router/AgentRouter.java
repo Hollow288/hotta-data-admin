@@ -3,6 +3,7 @@ package com.hollow.build.agent.router;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.hollow.build.agent.config.AgentSwitches;
+import com.hollow.build.agent.config.AgentProperties;
 import com.hollow.build.agent.config.AgentUnsupportedException;
 import com.hollow.build.agent.core.AbstractAgent;
 import com.hollow.build.agent.entity.AgentAiCallLog;
@@ -39,6 +40,7 @@ public class AgentRouter {
     private final OpenAiChatClient openAiChatClient;
     private final AgentLogService agentLogService;
     private final AgentSwitches agentSwitches;
+    private final AgentProperties agentProperties;
 
     /** agentName -> bean。LinkedHashMap 保留注入顺序，影响 prompt 中的展示顺序。 */
     private final Map<String, AbstractAgent> agentsByName;
@@ -46,10 +48,12 @@ public class AgentRouter {
     public AgentRouter(OpenAiChatClient openAiChatClient,
                        AgentLogService agentLogService,
                        AgentSwitches agentSwitches,
+                       AgentProperties agentProperties,
                        List<AbstractAgent> agents) {
         this.openAiChatClient = openAiChatClient;
         this.agentLogService = agentLogService;
         this.agentSwitches = agentSwitches;
+        this.agentProperties = agentProperties;
         this.agentsByName = agents.stream().collect(Collectors.toMap(
                 AbstractAgent::agentName, a -> a,
                 (a, b) -> a, LinkedHashMap::new));
@@ -73,7 +77,7 @@ public class AgentRouter {
         }
 
         AbstractAgent target = agentsByName.get(decision.target());
-        if (target == null || !agentSwitches.isEnabled(target.agentName())) {
+        if (target == null || !isRoutable(target)) {
             throw new IllegalStateException("路由目标不可用: " + decision.target());
         }
 
@@ -116,11 +120,17 @@ public class AgentRouter {
         return parseToolCall(outcome.message(), enabled);
     }
 
-    /** 收集当前开启的 agent，按注入顺序返回。 */
+    /** 只向 Router 暴露整体开启且允许参与路由的 Agent，直连不受路由配置影响。 */
     private List<AbstractAgent> enabledAgents() {
         return agentsByName.values().stream()
-                .filter(a -> agentSwitches.isEnabled(a.agentName()))
+                .filter(this::isRoutable)
                 .toList();
+    }
+
+    private boolean isRoutable(AbstractAgent agent) {
+        return agentSwitches.isEnabled(agent.agentName())
+                && agentProperties.getRoutingEnabled().getOrDefault(
+                        agent.agentName(), agent.defaultRoutingEnabled());
     }
 
     /**
@@ -176,7 +186,7 @@ public class AgentRouter {
                  提前否决——应从已开启的业务 agent 中挑一个语义最贴近"把名词识别成
                  已知实体"任务的派过去（通常是别名 / 词典 / 字典类 agent）。
               5. 当且仅当用户问题**明显**属于当前所有 agent 都不覆盖的领域时
-                 （图片生成、天气查询、纯闲聊、需要外部实时信息、数学计算、翻译等），
+                 （例如没有对应工具的图片生成、天气查询、纯闲聊、数学计算、翻译等），
                  才调用 route_to_unsupported。"我不认识这个名词"不是 unsupported 的
                  理由——让业务 agent 去试。
             """;
@@ -206,7 +216,7 @@ public class AgentRouter {
     private static Map<String, Object> unsupportedRouteTool() {
         return tool(ROUTE_PREFIX + UNSUPPORTED_TARGET,
                 "当前没有任何可用业务 agent 适合处理用户请求时调用。"
-                        + "例如图片生成、天气查询、闲聊、外部实时信息查询等当前系统未提供的能力。");
+                        + "例如当前工具未覆盖的图片生成、天气查询、闲聊等能力。已有工具支持的实时查询不属于此类。");
     }
 
     private static Map<String, Object> tool(String name, String description) {

@@ -1,5 +1,13 @@
 # Agent 教学示例（多 Agent + 路由）
 
+新增的 TradingAgent 见 [行情查询指南](../../../../../../../docs/trading-agent-guide.md) 和
+[自主决策与模拟交易指南](../../../../../../../docs/paper-trading-guide.md)。
+它默认支持 `/api/v1/agent/trading` 直连，默认不参与总入口路由；可通过
+`com.hollow.agent.routing-enabled.trading` 开启路由，与整体启停开关分开。
+聊天入口保持只读；模拟实验通过 `/api/v1/trading/paper/accounts/{accountId}/runs` 调用普通编排服务，
+再由同一个 TradingAgent 提出决策、Java 风控与模拟成交服务完成记账。
+账户定时运行和每日汇报见 [自动运行与日报指南](../../../../../../../docs/trading-automation-guide.md)。
+
 > 一个最小但**完整**的多 Agent 系统：用户输入一句话，**Router** 自动判断该派给谁，对应的 **Agent** 在自己专属的工具集里来回决策、调工具，最后给出回复。全程异步落库可追溯。
 >
 > 看完这个 README，你应该能把 "Tool / Agent / Router / Skill / MCP" 这几个名词的关系理清，并且能照葫芦画瓢加一个新 Agent。

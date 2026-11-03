@@ -57,6 +57,11 @@ public abstract class AbstractAgent {
     /** 用于日志中区分是哪个 agent。Router 也按它做 Map 键。 */
     public abstract String agentName();
 
+    /** 默认参与总入口路由；新业务可覆盖为 false，先通过直连接口调试。 */
+    public boolean defaultRoutingEnabled() {
+        return true;
+    }
+
     /**
      * 给 Router 看的"我是谁、什么场景该派给我"。
      *
@@ -121,6 +126,12 @@ public abstract class AbstractAgent {
     }
 
     public AgentResult ask(String userMessage, String requestId, String clientIp) throws Exception {
+        return askWithSystemPrompt(userMessage, requestId, clientIp, systemPrompt());
+    }
+
+    /** 每次请求独立的任务提示词；不修改共享 Bean 状态，供同一 Agent 的不同业务入口复用。 */
+    protected AgentResult askWithSystemPrompt(String userMessage, String requestId, String clientIp,
+                                              String taskSystemPrompt) throws Exception {
 
         // 入口拦截：开关一关，无论 router 派发还是直连入口都走不通，语义统一。
         if (!agentSwitches.isEnabled(agentName())) {
@@ -129,7 +140,7 @@ public abstract class AbstractAgent {
 
         long askStart = System.currentTimeMillis();
         List<Map<String, Object>> messages = new ArrayList<>();
-        messages.add(ChatMessages.system(systemPrompt()));
+        messages.add(ChatMessages.system(taskSystemPrompt));
         messages.add(ChatMessages.user(userMessage));
 
         List<Map<String, Object>> traceEntries = new ArrayList<>();
