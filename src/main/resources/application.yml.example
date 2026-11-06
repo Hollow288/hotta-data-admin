@@ -122,7 +122,7 @@ com:
           - ETHUSDT
         fee-rate: 0.001             # 每笔模拟成交手续费 0.1%
         slippage-bps: 5             # 模拟滑点 5 bps，即 0.05%
-        max-trades-per-day: 1       # 按北京时间自然日统计，手动/自动成交合计
+        max-trades-per-day: 1       # 按北京时间自然日统计买入次数；卖出减仓豁免，兼容旧字段名
         max-market-age: 60s         # 执行时行情与交易规则的最大有效期
         run-timeout: 10m            # 单轮实验超时上限
         # 进程总开关；启用后仍需通过 automation 接口单独开启账户。
@@ -130,6 +130,11 @@ com:
         scheduler-enabled: ${TRADING_PAPER_SCHEDULER_ENABLED:false}
         scheduler-poll-interval: 60s
         scheduler-batch-size: 20
+        # 纯 Java 止盈止损巡检，不调用模型；独立开关，不依赖每日自动决策是否启用。
+        # 开启后扫描所有带保护计划的模拟持仓；停用账户每日 automation 不会停止保护性卖出。
+        protection-enabled: ${TRADING_PAPER_PROTECTION_ENABLED:false}
+        protection-poll-interval: 60s
+        protection-batch-size: 20
     agent:
       # Agent 主循环最多跑几轮（防止 AI 不停调工具）
       max-iterations: 6
