@@ -1,7 +1,7 @@
 HELP.md
 target/
 test/
-config/
+/config/
 docs/
 logs/
 .mvn/wrapper/maven-wrapper.jar
